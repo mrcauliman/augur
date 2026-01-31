@@ -1,0 +1,21 @@
+{
+  "vault_version": "1.0.0",
+  "timezone": "America/Los_Angeles",
+  "snapshot_schedule": {
+    "freq": "daily",
+    "hour": 6,
+    "minute": 0
+  },
+  "monthly_record_schedule": {
+    "day": 1,
+    "hour": 7,
+    "minute": 0
+  },
+  "privacy": {
+    "store_raw_payloads": true
+  },
+  "security": {
+    "encryption_enabled": false,
+    "auto_lock_minutes": 5
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "month": "2026-01",
+  "totals": { "in_xrp": 0, "out_xrp": 0, "fee_xrp": 0, "tx_count": 0 },
+  "accounts": [
+    { "account_id": "acct_xrpl_2df93d1e", "chain": "xrpl", "label": "public-hot:ripple-11", "in_xrp": 0, "out_xrp": 0, "tx_count": 0 }
+  ],
+  "generated_at": "2026-01-31T00:00:00.000Z"
+}

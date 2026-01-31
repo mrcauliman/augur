@@ -86,3 +86,16 @@ export async function appendEvent(vaultPath: string, chain: string, accountId: s
   await fs.ensureDir(path.dirname(file));
   await fs.appendFile(file, jsonlLine(evt));
 }
+
+export async function setAccountStatus(vaultPath: string, accountId: string, status: "active" | "paused") {
+  const accounts = await readAccounts(vaultPath);
+  const next = accounts.map((a) => (a.account_id === accountId ? { ...a, status } : a));
+
+  const file = pVault(vaultPath, ...DIRS.accounts, "accounts.jsonl");
+  const text = next.map((a) => JSON.stringify(a)).join("\n") + "\n";
+  await fs.writeFile(file, text, "utf8");
+
+  const updated = next.find((a) => a.account_id === accountId);
+  if (!updated) throw new Error("account not found");
+  return updated;
+}

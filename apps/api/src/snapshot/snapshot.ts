@@ -1,11 +1,12 @@
 import { nowIso, sha1 } from "../vault/utils.js";
 import type { Account, Snapshot } from "../vault/schema.js";
 import type { LastSeen, Dedupe } from "../vault/indexes.js";
-import { appendSnapshot } from "../vault/writer.js";
+import { appendSnapshot, appendEvent } from "../vault/writer.js";
 import { xrplFetchSnapshot } from "../observers/xrpl.js";
 import { evmFetchSnapshot } from "../observers/evm.js";
 import { btcFetchSnapshot } from "../observers/btc.js";
 import { solFetchSnapshot } from "../observers/sol.js";
+import { xrplFetchEvents } from "../observers/xrpl_events.js";
 
 export async function snapshotAccount(vaultPath: string, account: Account, lastSeen: LastSeen, dedupe: Dedupe) {
   const ts = nowIso();
@@ -19,6 +20,20 @@ export async function snapshotAccount(vaultPath: string, account: Account, lastS
     native_balance = s.native_balance;
     token_balances = s.token_balances;
     metadata = s.metadata;
+
+    const evts = await xrplFetchEvents(
+      account.address_or_identifier,
+      account.account_id,
+      lastSeen,
+      dedupe,
+      200
+    );
+
+    console.log(`[dl] xrpl events fetched ${evts.length} for ${account.account_id}`);
+
+    for (const e of evts) {
+      await appendEvent(vaultPath, "xrpl", account.account_id, e);
+    }
   } else if (account.chain === "evm") {
     const s = await evmFetchSnapshot(account.address_or_identifier);
     native_balance = s.native_balance;

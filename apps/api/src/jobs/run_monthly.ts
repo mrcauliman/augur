@@ -9,18 +9,22 @@ function currentMonthUtc() {
   return `${y}-${m}`;
 }
 
-async function main() {
-  const cmd = process.argv[2] || "run";
-  const monthArg = process.argv[3];
-
-  if (cmd !== "run") {
-    console.log("[dl] usage: monthly run [YYYY-MM]");
-    process.exit(1);
+function pickMonthArg(argv: string[]) {
+  // Accept: tsx run_monthly.ts run 2026-01
+  // Accept: pnpm monthly 2026-01 (script already includes run)
+  // Accept: pnpm monthly run 2026-01 (extra run)
+  const re = /^\d{4}-\d{2}$/;
+  for (let i = argv.length - 1; i >= 0; i--) {
+    if (re.test(argv[i])) return argv[i];
   }
+  return "";
+}
+
+async function main() {
+  const monthArg = pickMonthArg(process.argv);
+  const month = monthArg || currentMonthUtc();
 
   await ensureVault(CONFIG.vaultPath);
-
-  const month = monthArg || currentMonthUtc();
   await generateMonthlyRecord(CONFIG.vaultPath, month);
 
   console.log("[dl] monthly complete", month);

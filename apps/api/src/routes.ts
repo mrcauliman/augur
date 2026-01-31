@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { CONFIG } from "./config.js";
-import { ensureVault, readAccounts, addAccount } from "./vault/writer.js";
+import { ensureVault, readAccounts, addAccount, setAccountStatus } from "./vault/writer.js";
 
 export function routes(app: Express) {
   app.get("/health", (_req, res) => res.json({ ok: true, service: "dl-api" }));
@@ -22,6 +22,18 @@ export function routes(app: Express) {
 
     await ensureVault(CONFIG.vaultPath);
     const account = await addAccount(CONFIG.vaultPath, { type, chain, label, address_or_identifier });
+    res.json({ ok: true, account });
+  });
+
+  app.post("/api/accounts/:id/pause", async (req, res) => {
+    await ensureVault(CONFIG.vaultPath);
+    const account = await setAccountStatus(CONFIG.vaultPath, req.params.id, "paused");
+    res.json({ ok: true, account });
+  });
+
+  app.post("/api/accounts/:id/resume", async (req, res) => {
+    await ensureVault(CONFIG.vaultPath);
+    const account = await setAccountStatus(CONFIG.vaultPath, req.params.id, "active");
     res.json({ ok: true, account });
   });
 }

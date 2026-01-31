@@ -3,13 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Digital Ledger (DL) — House of Cauliman</title>
-  <meta name="description" content="Digital Ledger (DL) turns public wallet history into clean monthly reports across chains. Local-first vault. Audit-ready." />
-
-  <meta property="og:title" content="Digital Ledger (DL) — House of Cauliman" />
-  <meta property="og:description" content="Local-first finance vault. Public addresses in. Monthly clarity out. No keys stored." />
-  <meta property="og:type" content="website" />
-
+  <title>Digital Ledger</title>
+  <meta name="description" content="Digital Ledger is a personal finance vault for onchain wallets. Snapshots, events, and monthly reports. Private by design." />
   <style>
     :root{
       --bg:#070a0e;
@@ -19,50 +14,51 @@
       --muted:#9fb0c6;
       --line:#203048;
       --a:#8fb7ff;
-      --good:#2ecc71;
-      --warn:#f1c40f;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
-      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      --good:#2fbf6b;
+      --mono:ui-monospace,Menlo,Consolas,monospace;
     }
-    html,body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans)}
-    .wrap{max-width:1100px;margin:0 auto;padding:32px 16px 80px}
-    .top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    a{color:var(--a);text-decoration:none}
+    .wrap{max-width:1100px;margin:0 auto;padding:28px 16px 80px}
+    .top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}
     .brand{display:flex;align-items:center;gap:12px}
     .mark{
-      width:44px;height:44px;border-radius:14px;
-      border:1px solid var(--line);
-      background:linear-gradient(180deg,#121a24,#0b1118);
-      display:grid;place-items:center;
-      font-weight:900;letter-spacing:.6px;
-    }
-    h1{margin:0;font-size:30px;letter-spacing:.2px}
-    p{margin:10px 0;color:var(--muted);line-height:1.55}
-    a{color:var(--a);text-decoration:none}
-    a:hover{text-decoration:underline}
-    .ctaRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
-    .btn{
-      display:inline-block;
-      padding:10px 14px;
-      border-radius:12px;
+      width:48px;height:48px;border-radius:14px;
       border:1px solid var(--line);
       background:linear-gradient(180deg,var(--panel),var(--panel2));
-      color:var(--fg);
-      text-decoration:none;
-      font-weight:800;
+      display:flex;align-items:center;justify-content:center;
+      font-weight:900;letter-spacing:.5px;
     }
-    .btn.secondary{color:var(--a)}
-    .grid{display:grid;gap:12px;margin-top:16px}
-    @media(min-width:900px){.grid{grid-template-columns:1.15fr .85fr}}
-    .card{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--panel2));padding:16px}
-    .k{display:inline-block;padding:2px 8px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:12px;margin-right:8px;margin-bottom:8px}
-    .hr{height:1px;background:var(--line);margin:16px 0}
-    pre{margin:0;background:#05070a;border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto;font-family:var(--mono);font-size:12.5px;line-height:1.45;color:#cfe4ff}
-    ul{color:var(--muted);line-height:1.7;margin:8px 0 0 18px}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-    .pill{border:1px solid var(--line);border-radius:999px;padding:6px 10px;color:var(--muted);font-size:12px}
-    .good{color:var(--good)}
-    .warn{color:var(--warn)}
-    .foot{margin-top:18px;color:var(--muted);font-size:12px}
+    h1{margin:0;font-size:26px;line-height:1.15}
+    .sub{margin:6px 0 0;color:var(--muted);max-width:70ch}
+    .k{
+      display:inline-block;padding:2px 8px;border:1px solid var(--line);
+      border-radius:999px;color:var(--muted);font-size:12px;margin-right:8px;margin-bottom:8px
+    }
+    .card{
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:linear-gradient(180deg,var(--panel),var(--panel2));
+      padding:16px;
+      margin-top:14px;
+    }
+    .grid{display:grid;gap:12px}
+    @media(min-width:900px){.grid{grid-template-columns:1.2fr .8fr}}
+    .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    .btn{
+      display:inline-flex;align-items:center;justify-content:center;
+      padding:10px 14px;border-radius:12px;
+      border:1px solid var(--line);
+      background:#05070a;
+      color:var(--fg);
+      font-weight:700;
+    }
+    .btn.primary{border-color:#2b4770;background:linear-gradient(180deg,#0b1b2f,#07101c)}
+    .btn.good{border-color:#1f6b3f;background:linear-gradient(180deg,#0b2317,#06150f)}
+    .list{margin:10px 0 0;padding-left:18px;color:var(--muted)}
+    code{font-family:var(--mono);font-size:.95em;color:#cfe4ff}
+    .foot{margin-top:18px;color:var(--muted);font-size:12.5px}
+    .rule{height:1px;background:var(--line);margin:14px 0}
   </style>
 </head>
 <body>
@@ -70,95 +66,88 @@
 
     <div class="top">
       <div class="brand">
-<div class="mark" style="padding:6px">
-  <img src="assets/dl_logo_v1.png" alt="DL" style="width:100%;height:100%;object-fit:contain" />
-</div>
-
+        <div class="mark">DL</div>
         <div>
           <h1>Digital Ledger</h1>
-          <div class="k">DL v1</div><div class="k">House of Cauliman</div>
+          <div class="sub">A personal finance vault that pulls wallet history from chains, writes clean snapshots and events, and generates monthly reports.</div>
+          <div style="margin-top:10px">
+            <span class="k">DL v1</span>
+            <span class="k">vault first</span>
+            <span class="k">reports</span>
+            <span class="k">no custody</span>
+          </div>
         </div>
       </div>
 
       <div>
-        <div class="ctaRow">
-          <a class="btn" href="/dl/runbook.html">Runbook</a>
-          <a class="btn secondary" href="/dl/app/">Open App</a>
-          <a class="btn secondary" href="/collections/">Back to House</a>
-        </div>
-        <p style="margin:10px 0 0">Local-first finance vault. Public wallets in. Monthly clarity out.</p>
+        <a class="btn" href="runbook.html">Runbook</a>
+        <a class="btn good" href="app.html">Demo Dashboard</a>
       </div>
     </div>
 
     <div class="grid">
       <div class="card">
-        <span class="k">what we built</span><span class="k">why it matters</span>
-        <p>DL is a vault-backed ledger for digital finances. You add public addresses. DL pulls history. DL writes events and snapshots to a local vault. Then DL generates monthly summaries you can actually use.</p>
-
-        <div class="hr"></div>
-
-        <div class="row">
-          <div class="pill"><span class="good">local-first</span> your vault, your data</div>
-          <div class="pill"><span class="good">audit-ready</span> JSONL event trail</div>
-          <div class="pill"><span class="good">multi-chain</span> XRPL first, then more</div>
-          <div class="pill"><span class="warn">no keys stored</span> public addresses only</div>
+        <div class="k">what it is</div>
+        <div class="sub" style="margin-top:6px">
+          DL is not an exchange, not a wallet, not a tracker site. It is a private ledger you control.
+          It stores normalized data in a vault folder and produces reports you can read, export, and automate.
         </div>
 
-        <div class="hr"></div>
+        <div class="btnrow">
+          <a class="btn primary" href="app.html">Open Demo Dashboard</a>
+          <a class="btn" href="runbook.html">Open Runbook</a>
+        </div>
 
-        <span class="k">DL v1 scope</span>
-        <ul>
-          <li>XRPL ingest: transfers in, transfers out, fees</li>
-          <li>Monthly report: totals and counts per account</li>
-          <li>Indexes: last_seen + tx_dedupe so re-runs stay clean</li>
-          <li>Observers for EVM, BTC, SOL exist as stubs, wired later</li>
+        <div class="rule"></div>
+
+        <div class="k">v1 capabilities</div>
+        <ul class="list">
+          <li>Account registry in <code>vault/sample_vault/data/accounts/accounts.jsonl</code></li>
+          <li>Snapshots per chain written to <code>data/snapshots</code></li>
+          <li>Event stream for XRPL written to <code>data/events</code></li>
+          <li>Dedupe and last seen indexes in <code>data/indexes</code></li>
+          <li>Monthly report generator to <code>reports/monthly</code></li>
         </ul>
 
-        <div class="hr"></div>
+        <div class="rule"></div>
 
-        <span class="k">what this does that others don’t</span>
-        <ul>
-          <li>Most trackers show a dashboard, then your data disappears into their platform</li>
-          <li>DL writes a vault you can version, back up, and prove</li>
-          <li>DL produces a clean monthly ledger output, not a “pretty chart” addiction loop</li>
+        <div class="k">why it wins</div>
+        <ul class="list">
+          <li>One vault format across chains</li>
+          <li>Local first and portable</li>
+          <li>Report engine is deterministic, easy to audit</li>
+          <li>No third party dashboard dependency</li>
         </ul>
       </div>
 
       <div class="card">
-        <span class="k">how it works</span>
-        <pre>1) Add public wallet address
-2) Snapshot pulls balances + events
-3) Vault writes:
-   data/events
-   data/snapshots
-   data/indexes
-4) Monthly job outputs:
-   reports/monthly/YYYY-MM/summary.json</pre>
-
-        <div class="hr"></div>
-
-        <span class="k">sample commands</span>
-        <pre>pnpm snapshot
-pnpm monthly 2026-01
-
-cat vault/sample_vault/reports/monthly/2026-01/summary.json</pre>
-
-        <div class="hr"></div>
-
-        <span class="k">privacy rules</span>
-        <ul>
-          <li>No seed phrases, no private keys, no signing inside DL v1</li>
-          <li>Premium features later can use Xaman sign-in, outside the vault</li>
+        <div class="k">links</div>
+        <ul class="list">
+          <li><a href="app.html">Demo Dashboard</a></li>
+          <li><a href="runbook.html">Runbook</a></li>
+          <li><a href="https://github.com/mrcauliman/digital-ledger">GitHub repo</a></li>
         </ul>
+
+        <div class="rule"></div>
+
+        <div class="k">revenue path</div>
+        <ul class="list">
+          <li>Pro reports and exports</li>
+          <li>Multi account bundles</li>
+          <li>Automation packs and templates</li>
+          <li>Optional hosted sync</li>
+        </ul>
+
+        <div class="foot">
+          Built inside House of Cauliman as a core utility. Public page is marketing. Vault engine stays yours.
+        </div>
       </div>
     </div>
 
-    <div class="card" style="margin-top:12px">
-      <span class="k">next</span><span class="k">ship</span>
-      <p>Next we publish the DL app shell under <span class="k">/dl/app/</span> and render the monthly summary in a clean UI. Then we mount the API behind nginx and make it reachable by the House site.</p>
+    <div class="foot">
+      Tip: keep your vault private. Publish only pages, never your vault folder.
     </div>
 
-    <div class="foot">House of Cauliman Project — Digital Ledger (DL)</div>
   </div>
 </body>
 </html>

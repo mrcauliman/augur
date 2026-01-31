@@ -70,7 +70,7 @@
 
 <script>
 (async () => {
-  const resp = await fetch("demo/summary.json", { cache: "no-store" });
+const resp = await fetch("public_data/summary.json", { cache: "no-store" });
   const data = await resp.json();
 
   document.getElementById("raw").textContent = JSON.stringify(data, null, 2);

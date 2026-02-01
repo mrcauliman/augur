@@ -9,4 +9,3 @@ DST="/usr/local/bin/dl"
 
 sudo install -m 0755 "$SRC" "$DST"
 echo "[dl] installed $DST"
-dl --help

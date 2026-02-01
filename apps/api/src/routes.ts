@@ -12,7 +12,7 @@ export function routes(app: Express) {
   });
 
   app.post("/api/accounts", async (req, res) => {
-    const { type, chain, label, address_or_identifier } = req.body || {};
+    const { type, chain, label, address_or_identifier, network } = req.body || {};
     if (!type || !chain || !label || !address_or_identifier) {
       return res.status(400).json({
         ok: false,
@@ -21,7 +21,7 @@ export function routes(app: Express) {
     }
 
     await ensureVault(CONFIG.vaultPath);
-    const account = await addAccount(CONFIG.vaultPath, { type, chain, label, address_or_identifier });
+    const account = await addAccount(CONFIG.vaultPath, { type, chain, label, address_or_identifier, network });
     res.json({ ok: true, account });
   });
 

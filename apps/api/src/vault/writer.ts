@@ -53,7 +53,7 @@ export async function readAccounts(vaultPath: string): Promise<Account[]> {
 
 export async function addAccount(
   vaultPath: string,
-  input: { type: Account["type"]; chain: Account["chain"]; label: string; address_or_identifier: string }
+  input: { type: Account["type"]; chain: Account["chain"]; label: string; address_or_identifier: string; network?: string }
 ): Promise<Account> {
   const account_id = `acct_${input.chain}_${sha1(input.label + input.address_or_identifier).slice(0, 8)}`;
   const account: Account = {
@@ -62,6 +62,7 @@ export async function addAccount(
     chain: input.chain,
     label: input.label,
     address_or_identifier: input.address_or_identifier,
+    network: input.network ? String(input.network) : undefined,
     created_at: nowIso(),
     status: "active"
   };

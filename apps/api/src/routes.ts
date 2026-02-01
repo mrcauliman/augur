@@ -9,7 +9,7 @@ import {
 } from "./vault/writer.js";
 
 export function routes(app: Express) {
-  app.get("/health", (_req, res) => res.json({ ok: true, service: "dl-api" }));
+  app.get("/health", (_req, res) => res.json({ ok: true, service: "augur-api" }));
 
   // Default active only
   // Full list: /api/accounts?all=1

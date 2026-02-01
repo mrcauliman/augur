@@ -5,6 +5,7 @@ ROOT="/var/www/digital-ledger"
 VAULT_DEFAULT="$ROOT/vault/sample_vault"
 VAULT_PATH="${DL_VAULT_PATH:-$VAULT_DEFAULT}"
 API_BASE="http://127.0.0.1:8787"
+LOG_FILE="/tmp/dl_api.log"
 
 run_root() { (cd "$ROOT" && pnpm "$@"); }
 
@@ -16,13 +17,12 @@ need_api() {
   }
 }
 
-json() {
+json_kv() {
   python3 - "$@" <<'PY'
 import json, sys
-# argv: alternating key value pairs
 args = sys.argv[1:]
 if len(args) % 2 != 0:
-  raise SystemExit("json() needs key value pairs")
+  raise SystemExit("[dl] json_kv needs key value pairs")
 d = {}
 for i in range(0, len(args), 2):
   k = args[i]
@@ -30,7 +30,7 @@ for i in range(0, len(args), 2):
   if v == "__null__":
     continue
   d[k] = v
-sys.stdout.write(json.dumps(d, separators=(",",":")))
+print(json.dumps(d))
 PY
 }
 
@@ -40,8 +40,10 @@ DL CLI
 
 Core
   dl status
-  dl api
-  dl api:stop
+  dl api            foreground dev server (watch)
+  dl api:bg         background api (non-watch)
+  dl api:stop       stop port 8787 listener
+  dl api:logs       tail api log
   dl snapshot
   dl monthly YYYY-MM
   dl publish
@@ -70,10 +72,33 @@ case "$cmd" in
   api)
     run_root dev:api
     ;;
+  api:bg)
+    if curl -fsS "$API_BASE/health" >/dev/null 2>&1; then
+      echo "[dl] api already up"
+      exit 0
+    fi
+    (
+      cd "$ROOT/apps/api"
+      nohup pnpm start </dev/null >"$LOG_FILE" 2>&1 &
+      disown || true
+    )
+    sleep 1
+    if curl -fsS "$API_BASE/health" >/dev/null 2>&1; then
+      echo "[dl] api up (bg) log=$LOG_FILE"
+    else
+      echo "[dl] api failed to start, log follows"
+      sed -n '1,200p' "$LOG_FILE" || true
+      exit 1
+    fi
+    ;;
+  api:logs)
+    [ -f "$LOG_FILE" ] || { echo "[dl] no log at $LOG_FILE"; exit 1; }
+    tail -n 120 "$LOG_FILE"
+    ;;
   api:stop)
     pid="$(lsof -t -i :8787 2>/dev/null || true)"
     if [ -n "${pid:-}" ]; then
-      kill -9 "$pid"
+      kill -9 "$pid" || true
       echo "[dl] killed :8787 pid=$pid"
     else
       echo "[dl] nothing on :8787"
@@ -96,17 +121,10 @@ case "$cmd" in
     ;;
   add)
     need_api
-    chain="${2:-}"
-    addr="${3:-}"
-    label="${4:-}"
-    net="${5:-}"
+    chain="${2:-}"; addr="${3:-}"; label="${4:-}"; net="${5:-}"
+    [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || { echo "[dl] usage: dl add CHAIN ADDRESS LABEL [NETWORK]"; exit 1; }
 
-    [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || {
-      echo "[dl] usage: dl add CHAIN ADDRESS LABEL [NETWORK]"
-      exit 1
-    }
-
-    body="$(json \
+    payload="$(json_kv \
       type onchain_wallet \
       chain "$chain" \
       label "$label" \
@@ -116,18 +134,16 @@ case "$cmd" in
 
     curl -sS -X POST "$API_BASE/api/accounts" \
       -H 'content-type: application/json' \
-      -d "$body"
+      -d "$payload"
     ;;
   pause)
     need_api
-    id="${2:-}"
-    [ -n "$id" ] || { echo "[dl] usage: dl pause ACCOUNT_ID"; exit 1; }
+    id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl pause ACCOUNT_ID"; exit 1; }
     curl -sS -X POST "$API_BASE/api/accounts/$id/pause"
     ;;
   resume)
     need_api
-    id="${2:-}"
-    [ -n "$id" ] || { echo "[dl] usage: dl resume ACCOUNT_ID"; exit 1; }
+    id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl resume ACCOUNT_ID"; exit 1; }
     curl -sS -X POST "$API_BASE/api/accounts/$id/resume"
     ;;
   vault:path)

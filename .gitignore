@@ -36,3 +36,6 @@ vault/**/data/events/
 # local vault data never committed
 /vault/sample_vault/data/
 /vault/sample_vault/reports/
+
+# local backups
+_backups/

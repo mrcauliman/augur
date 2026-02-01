@@ -10,5 +10,5 @@ app.use(express.json({ limit: "2mb" }));
 routes(app);
 
 app.listen(CONFIG.port, () => {
-  console.log(`[dl] api up on :${CONFIG.port}`);
+  console.log(`[augur] api up on :${CONFIG.port}`);
 });

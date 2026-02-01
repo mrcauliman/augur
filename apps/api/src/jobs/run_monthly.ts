@@ -27,10 +27,10 @@ async function main() {
   await ensureVault(CONFIG.vaultPath);
   await generateMonthlyRecord(CONFIG.vaultPath, month);
 
-  console.log("[dl] monthly complete", month);
+  console.log("[augur] monthly complete", month);
 }
 
 main().catch((e) => {
-  console.error("[dl] monthly fatal", e);
+  console.error("[augur] monthly fatal", e);
   process.exit(1);
 });

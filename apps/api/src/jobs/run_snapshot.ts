@@ -8,7 +8,7 @@ async function main() {
 
   if (cmd === "init") {
     await ensureVault(CONFIG.vaultPath);
-    console.log("[dl] vault initialized", CONFIG.vaultPath);
+    console.log("[augur] vault initialized", CONFIG.vaultPath);
     return;
   }
 
@@ -19,24 +19,24 @@ async function main() {
   const dedupe = await getDedupe(CONFIG.vaultPath);
 
   const active = accounts.filter((a) => a.status === "active");
-  console.log(`[dl] snapshot start accounts=${accounts.length} active=${active.length}`);
+  console.log(`[augur] snapshot start accounts=${accounts.length} active=${active.length}`);
 
   for (const a of active) {
     try {
       await snapshotAccount(CONFIG.vaultPath, a, lastSeen, dedupe);
-      console.log(`[dl] snapshot ok ${a.chain} ${a.account_id}`);
+      console.log(`[augur] snapshot ok ${a.chain} ${a.account_id}`);
     } catch (e: any) {
-      console.error(`[dl] snapshot fail ${a.chain} ${a.account_id}`, e?.message || e);
+      console.error(`[augur] snapshot fail ${a.chain} ${a.account_id}`, e?.message || e);
     }
   }
 
   await setLastSeen(CONFIG.vaultPath, lastSeen);
   await setDedupe(CONFIG.vaultPath, dedupe);
 
-  console.log("[dl] snapshot complete");
+  console.log("[augur] snapshot complete");
 }
 
 main().catch((e) => {
-  console.error("[dl] snapshot fatal", e);
+  console.error("[augur] snapshot fatal", e);
   process.exit(1);
 });

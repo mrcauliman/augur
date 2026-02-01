@@ -11,15 +11,15 @@ run_root() { (cd "$ROOT" && pnpm "$@"); }
 
 need_api() {
   curl -fsS "$API_BASE/health" >/dev/null 2>&1 || {
-    echo "[augur] api not reachable on :8787"
-    echo "[augur] run: dl api or dl api:bg"
+    echo "[dl] api not reachable on :8787"
+    echo "[dl] run: dl api or dl api:bg"
     exit 1
   }
 }
 
 usage() {
   cat <<'TXT'
-AUGUR CLI
+DL CLI
 
 Core
   dl status
@@ -56,9 +56,9 @@ kill_port() {
     if [ -n "${pid:-}" ]; then
       kill -9 "$pid" || true
     fi
-    echo "[augur] killed :$port"
+    echo "[dl] killed :$port"
   else
-    echo "[augur] nothing on :$port"
+    echo "[dl] nothing on :$port"
   fi
 }
 
@@ -98,13 +98,13 @@ case "$cmd" in
     disown || true
 
     if wait_health; then
-      echo "[augur] api up (bg) log=$LOG_FILE"
+      echo "[dl] api up (bg) log=$LOG_FILE"
       curl -sS "$API_BASE/health" || true
       echo
       exit 0
     fi
 
-    echo "[augur] api not healthy yet, see log=$LOG_FILE"
+    echo "[dl] api not healthy yet, see log=$LOG_FILE"
     tail -n 120 "$LOG_FILE" || true
     exit 1
     ;;
@@ -123,7 +123,7 @@ case "$cmd" in
 
   monthly)
     month="${2:-}"
-    [ -n "$month" ] || { echo "[augur] usage: dl monthly YYYY-MM"; exit 1; }
+    [ -n "$month" ] || { echo "[dl] usage: dl monthly YYYY-MM"; exit 1; }
     run_root -C apps/api monthly "$month"
     ;;
 
@@ -143,7 +143,7 @@ case "$cmd" in
 
   add)
     chain="${2:-}"; addr="${3:-}"; label="${4:-}"; net="${5:-}"
-    [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || { echo "[augur] usage: dl add CHAIN ADDRESS LABEL [NETWORK]"; exit 1; }
+    [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || { echo "[dl] usage: dl add CHAIN ADDRESS LABEL [NETWORK]"; exit 1; }
     need_api
     if [ -n "${net:-}" ]; then
       curl -sS -X POST "$API_BASE/api/accounts" \
@@ -157,19 +157,19 @@ case "$cmd" in
     ;;
 
   pause)
-    id="${2:-}"; [ -n "$id" ] || { echo "[augur] usage: dl pause ACCOUNT_ID"; exit 1; }
+    id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl pause ACCOUNT_ID"; exit 1; }
     need_api
     curl -sS -X POST "$API_BASE/api/accounts/$id/pause"
     ;;
 
   resume)
-    id="${2:-}"; [ -n "$id" ] || { echo "[augur] usage: dl resume ACCOUNT_ID"; exit 1; }
+    id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl resume ACCOUNT_ID"; exit 1; }
     need_api
     curl -sS -X POST "$API_BASE/api/accounts/$id/resume"
     ;;
 
   delete)
-    id="${2:-}"; [ -n "$id" ] || { echo "[augur] usage: dl delete ACCOUNT_ID"; exit 1; }
+    id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl delete ACCOUNT_ID"; exit 1; }
     need_api
     curl -sS -X POST "$API_BASE/api/accounts/$id/delete"
     ;;
@@ -185,7 +185,7 @@ case "$cmd" in
     ;;
 
   *)
-    echo "[augur] unknown command: $cmd"
+    echo "[dl] unknown command: $cmd"
     usage
     exit 1
     ;;

@@ -5,7 +5,7 @@ ROOT="/var/www/augur"
 SRC="$ROOT/cli/dl"
 DST="/usr/local/bin/dl"
 
-[ -f "$SRC" ] || { echo "[augur] missing $SRC"; exit 1; }
+[ -f "$SRC" ] || { echo "[dl] missing $SRC"; exit 1; }
 
 sudo install -m 0755 "$SRC" "$DST"
-echo "[augur] installed $DST"
+echo "[dl] installed $DST"

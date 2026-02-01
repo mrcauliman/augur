@@ -70,13 +70,9 @@ case "$cmd" in
     chain="${2:-}"; addr="${3:-}"; label="${4:-}"; net="${5:-}"
     [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || { echo "[dl] usage: dl add CHAIN ADDRESS LABEL [NETWORK]"; exit 1; }
     if [ -n "$net" ]; then
-      curl -sS -X POST http://127.0.0.1:8787/api/accounts \
-        -H 'content-type: application/json' \
-        -d "{\"type\":\"onchain_wallet\",\"chain\":\"$chain\",\"label\":\"$label\",\"address_or_identifier\":\"$addr\",\"network\":\"$net\"}"
+      curl -sS -X POST http://127.0.0.1:8787/api/accounts         -H 'content-type: application/json'         -d "{"type":"onchain_wallet","chain":"$chain","label":"$label","address_or_identifier":"$addr","network":"$net"}"
     else
-      curl -sS -X POST http://127.0.0.1:8787/api/accounts \
-        -H 'content-type: application/json' \
-        -d "{\"type\":\"onchain_wallet\",\"chain\":\"$chain\",\"label\":\"$label\",\"address_or_identifier\":\"$addr\"}"
+      curl -sS -X POST http://127.0.0.1:8787/api/accounts         -H 'content-type: application/json'         -d "{"type":"onchain_wallet","chain":"$chain","label":"$label","address_or_identifier":"$addr"}"
     fi
     ;;
   pause)

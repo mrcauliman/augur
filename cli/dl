@@ -38,6 +38,7 @@ Accounts
   dl pause ACCOUNT_ID
   dl resume ACCOUNT_ID
   dl delete ACCOUNT_ID
+  dl purge:deleted   permanently remove deleted accounts
 
 Vault
   dl vault:path
@@ -62,7 +63,7 @@ kill_port() {
 }
 
 wait_health() {
-  local tries=40
+  local tries=60
   local i=0
   while [ "$i" -lt "$tries" ]; do
     if curl -fsS "$API_BASE/health" >/dev/null 2>&1; then
@@ -84,6 +85,7 @@ case "$cmd" in
   status)
     need_api
     curl -sS "$API_BASE/health"
+    echo
     ;;
 
   api)
@@ -98,11 +100,12 @@ case "$cmd" in
     if wait_health; then
       echo "[dl] api up (bg) log=$LOG_FILE"
       curl -sS "$API_BASE/health" || true
+      echo
       exit 0
     fi
 
     echo "[dl] api not healthy yet, see log=$LOG_FILE"
-    tail -n 80 "$LOG_FILE" || true
+    tail -n 120 "$LOG_FILE" || true
     exit 1
     ;;
 
@@ -169,6 +172,39 @@ case "$cmd" in
     id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl delete ACCOUNT_ID"; exit 1; }
     need_api
     curl -sS -X POST "$API_BASE/api/accounts/$id/delete"
+    ;;
+
+  purge:deleted)
+    # Permanent cleanup in the local vault file (Tier 0 convenience)
+    python3 - "$VAULT_PATH" <<'PY'
+import json, sys, os
+vault = sys.argv[1]
+p = os.path.join(vault, "accounts.json")
+if not os.path.exists(p):
+  print("[dl] no accounts.json found")
+  raise SystemExit(0)
+with open(p, "r", encoding="utf-8") as f:
+  data = json.load(f)
+if isinstance(data, dict) and "accounts" in data and isinstance(data["accounts"], list):
+  accounts = data["accounts"]
+elif isinstance(data, list):
+  accounts = data
+else:
+  print("[dl] accounts.json unexpected shape")
+  raise SystemExit(1)
+
+before = len(accounts)
+kept = [a for a in accounts if a.get("status") != "deleted"]
+after = len(kept)
+
+tmp = p + ".tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+  json.dump(kept if isinstance(data, list) else {"accounts": kept}, f, indent=2)
+  f.write("\n")
+os.replace(tmp, p)
+
+print(f"[dl] purged deleted: before={before} after={after} removed={before-after}")
+PY
     ;;
 
   vault:path)

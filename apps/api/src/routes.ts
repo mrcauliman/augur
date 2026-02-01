@@ -5,10 +5,16 @@ import { ensureVault, readAccounts, addAccount, setAccountStatus } from "./vault
 export function routes(app: Express) {
   app.get("/health", (_req, res) => res.json({ ok: true, service: "dl-api" }));
 
-  app.get("/api/accounts", async (_req, res) => {
+  // Default: active only
+  // Full list: /api/accounts?all=1
+  app.get("/api/accounts", async (req, res) => {
     await ensureVault(CONFIG.vaultPath);
     const accounts = await readAccounts(CONFIG.vaultPath);
-    res.json({ ok: true, accounts });
+
+    const all = String(req.query.all || "") === "1";
+    const out = all ? accounts : accounts.filter((a: any) => a.status === "active");
+
+    res.json({ ok: true, accounts: out });
   });
 
   app.post("/api/accounts", async (req, res) => {

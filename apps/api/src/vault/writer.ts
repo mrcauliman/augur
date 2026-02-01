@@ -51,18 +51,52 @@ export async function readAccounts(vaultPath: string): Promise<Account[]> {
   return out;
 }
 
+function canon(s: string) {
+  return String(s || "").trim();
+}
+
+function normAddress(chain: string, addr: string) {
+  const a = canon(addr);
+  if (chain === "evm") return a.toLowerCase();
+  return a;
+}
+
 export async function addAccount(
   vaultPath: string,
-  input: { type: Account["type"]; chain: Account["chain"]; label: string; address_or_identifier: string; network?: string }
+  input: {
+    type: Account["type"];
+    chain: Account["chain"];
+    label: string;
+    address_or_identifier: string;
+    network?: string;
+  }
 ): Promise<Account> {
-  const account_id = `acct_${input.chain}_${sha1(input.label + input.address_or_identifier).slice(0, 8)}`;
+  const chain = canon(input.chain as any);
+  const address = normAddress(chain, input.address_or_identifier);
+  const network = input.network ? canon(input.network) : undefined;
+
+  const accounts = await readAccounts(vaultPath);
+
+  const dup = accounts.find((a) => {
+    if (a.status === "deleted") return false;
+    if (a.chain !== chain) return false;
+    const an = a.network ? canon(a.network) : "";
+    const nn = network ? canon(network) : "";
+    if (an != nn) return false;
+    return normAddress(chain, a.address_or_identifier) === address;
+  });
+
+  if (dup) return dup;
+
+  const account_id = `acct_${chain}_${sha1(canon(input.label) + address + (network || "")).slice(0, 8)}`;
+
   const account: Account = {
     account_id,
     type: input.type,
     chain: input.chain,
-    label: input.label,
-    address_or_identifier: input.address_or_identifier,
-    network: input.network ? String(input.network) : undefined,
+    label: canon(input.label),
+    address_or_identifier: address,
+    network,
     created_at: nowIso(),
     status: "active"
   };
@@ -70,6 +104,17 @@ export async function addAccount(
   const file = pVault(vaultPath, ...DIRS.accounts, "accounts.jsonl");
   await fs.appendFile(file, jsonlLine(account));
   return account;
+}
+
+export async function setAccountStatus(vaultPath: string, accountId: string, status: Account["status"]) {
+  const accounts = await readAccounts(vaultPath);
+  const next = accounts.map((a) => (a.account_id === accountId ? { ...a, status } : a));
+  const file = pVault(vaultPath, ...DIRS.accounts, "accounts.jsonl");
+  const text = next.map((a) => jsonlLine(a)).join("");
+  await fs.writeFile(file, text);
+  const out = next.find((a) => a.account_id === accountId);
+  if (!out) throw new Error("account not found");
+  return out;
 }
 
 export async function appendSnapshot(vaultPath: string, chain: string, accountId: string, snap: Snapshot) {
@@ -86,17 +131,4 @@ export async function appendEvent(vaultPath: string, chain: string, accountId: s
   const file = pVault(vaultPath, ...DIRS.events, chain, accountId, year, `${month}.jsonl`);
   await fs.ensureDir(path.dirname(file));
   await fs.appendFile(file, jsonlLine(evt));
-}
-
-export async function setAccountStatus(vaultPath: string, accountId: string, status: "active" | "paused") {
-  const accounts = await readAccounts(vaultPath);
-  const next = accounts.map((a) => (a.account_id === accountId ? { ...a, status } : a));
-
-  const file = pVault(vaultPath, ...DIRS.accounts, "accounts.jsonl");
-  const text = next.map((a) => JSON.stringify(a)).join("\n") + "\n";
-  await fs.writeFile(file, text, "utf8");
-
-  const updated = next.find((a) => a.account_id === accountId);
-  if (!updated) throw new Error("account not found");
-  return updated;
 }

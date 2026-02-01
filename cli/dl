@@ -38,7 +38,7 @@ Accounts
   dl pause ACCOUNT_ID
   dl resume ACCOUNT_ID
   dl delete ACCOUNT_ID
-  dl purge:deleted   permanently remove deleted accounts
+  dl purge:deleted   permanently remove deleted accounts from vault (auto-detect file)
 
 Vault
   dl vault:path
@@ -175,34 +175,107 @@ case "$cmd" in
     ;;
 
   purge:deleted)
-    # Permanent cleanup in the local vault file (Tier 0 convenience)
     python3 - "$VAULT_PATH" <<'PY'
-import json, sys, os
+import os, sys, json
+
 vault = sys.argv[1]
-p = os.path.join(vault, "accounts.json")
-if not os.path.exists(p):
-  print("[dl] no accounts.json found")
+
+def parse_json_or_jsonl(path):
+  # returns (kind, data)
+  # kind: "json_list", "json_dict_accounts", "jsonl"
+  with open(path, "rb") as f:
+    b = f.read()
+  # quick reject if it doesn't even look like it contains accounts
+  if b.find(b'"account_id"') == -1 and b.find(b'"status"') == -1:
+    return None
+
+  # try JSON
+  try:
+    txt = b.decode("utf-8")
+    data = json.loads(txt)
+    if isinstance(data, list):
+      return ("json_list", data)
+    if isinstance(data, dict) and isinstance(data.get("accounts"), list):
+      return ("json_dict_accounts", data)
+  except Exception:
+    pass
+
+  # try JSONL
+  try:
+    txt = b.decode("utf-8", errors="strict")
+    rows = []
+    for line in txt.splitlines():
+      line = line.strip()
+      if not line:
+        continue
+      rows.append(json.loads(line))
+    if rows and isinstance(rows[0], dict) and ("status" in rows[0]) and ("account_id" in rows[0] or "id" in rows[0]):
+      return ("jsonl", rows)
+  except Exception:
+    return None
+
+  return None
+
+candidates = []
+for root, _dirs, files in os.walk(vault):
+  for fn in files:
+    p = os.path.join(root, fn)
+    try:
+      if os.path.getsize(p) > 5_000_000:
+        continue
+      parsed = parse_json_or_jsonl(p)
+      if parsed:
+        kind, data = parsed
+        # count accounts
+        if kind == "json_list":
+          n = len(data)
+        elif kind == "json_dict_accounts":
+          n = len(data.get("accounts", []))
+        else:
+          n = len(data)
+        candidates.append((n, p, kind, data))
+    except Exception:
+      continue
+
+if not candidates:
+  print("[dl] no accounts file found in vault")
   raise SystemExit(0)
-with open(p, "r", encoding="utf-8") as f:
-  data = json.load(f)
-if isinstance(data, dict) and "accounts" in data and isinstance(data["accounts"], list):
-  accounts = data["accounts"]
-elif isinstance(data, list):
+
+# pick the file with the most accounts
+candidates.sort(key=lambda x: x[0], reverse=True)
+n, path, kind, data = candidates[0]
+
+if kind == "json_list":
   accounts = data
+elif kind == "json_dict_accounts":
+  accounts = data.get("accounts", [])
 else:
-  print("[dl] accounts.json unexpected shape")
-  raise SystemExit(1)
+  accounts = data
 
 before = len(accounts)
 kept = [a for a in accounts if a.get("status") != "deleted"]
 after = len(kept)
 
-tmp = p + ".tmp"
-with open(tmp, "w", encoding="utf-8") as f:
-  json.dump(kept if isinstance(data, list) else {"accounts": kept}, f, indent=2)
-  f.write("\n")
-os.replace(tmp, p)
+tmp = path + ".tmp"
+if kind == "json_list":
+  out = kept
+  with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(out, f, indent=2)
+    f.write("\n")
+elif kind == "json_dict_accounts":
+  out = dict(data)
+  out["accounts"] = kept
+  with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(out, f, indent=2)
+    f.write("\n")
+else:
+  with open(tmp, "w", encoding="utf-8") as f:
+    for row in kept:
+      f.write(json.dumps(row, separators=(",", ":"), ensure_ascii=False) + "\n")
 
+os.replace(tmp, path)
+
+print(f"[dl] purge file={path} kind={kind}")
 print(f"[dl] purged deleted: before={before} after={after} removed={before-after}")
 PY
     ;;

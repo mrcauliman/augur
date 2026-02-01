@@ -18,10 +18,12 @@ async function main() {
   const lastSeen = await getLastSeen(CONFIG.vaultPath);
   const dedupe = await getDedupe(CONFIG.vaultPath);
 
-  console.log(`[dl] snapshot start accounts=${accounts.length}`);
+  const active = accounts.filter((a)=>a.status==="active");
 
-  for (const a of accounts) {
-    if (a.status !== "active") continue;
+  console.log(`[dl] snapshot start accounts= active=`);
+
+  
+for (const a of active) {
     try {
       await snapshotAccount(CONFIG.vaultPath, a, lastSeen, dedupe);
       console.log(`[dl] snapshot ok ${a.chain} ${a.account_id}`);

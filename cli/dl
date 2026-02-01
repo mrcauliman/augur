@@ -177,6 +177,7 @@ case "$cmd" in
   purge:deleted)
     need_api
     curl -sS -X POST "$API_BASE/api/accounts/purge-deleted"
+    echo
     ;;
 
   vault:path)

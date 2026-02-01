@@ -32,13 +32,17 @@ EOF
 
 cmd="${1:-}"
 case "$cmd" in
-  ""|"-h"|"--help") usage ;;
+  ""|"-h"|"--help")
+    usage
+    ;;
   status)
     echo "[dl] root $ROOT"
     echo "[dl] vault $VAULT_PATH"
     echo "[dl] git $(cd "$ROOT" && git rev-parse --short HEAD)"
     ;;
-  api) run_root dev:api ;;
+  api)
+    run_root dev:api
+    ;;
   api:stop)
     pid="$(lsof -t -i :8787 2>/dev/null || true)"
     if [ -n "${pid:-}" ]; then
@@ -48,22 +52,30 @@ case "$cmd" in
       echo "[dl] nothing on :8787"
     fi
     ;;
-  snapshot) run_root snapshot ;;
+  snapshot)
+    run_root snapshot
+    ;;
   monthly)
     m="${2:-}"
     [ -n "$m" ] || { echo "[dl] missing YYYY-MM"; exit 1; }
     run_root monthly "$m"
     ;;
-  publish) run_root publish:public ;;
-  accounts) curl -sS http://127.0.0.1:8787/api/accounts ;;
+  publish)
+    run_root publish:public
+    ;;
+  accounts)
+    curl -sS http://127.0.0.1:8787/api/accounts
+    ;;
   add)
     chain="${2:-}"; addr="${3:-}"; label="${4:-}"; net="${5:-}"
     [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || { echo "[dl] usage: dl add CHAIN ADDRESS LABEL [NETWORK]"; exit 1; }
     if [ -n "$net" ]; then
-      curl -sS -X POST http://127.0.0.1:8787/api/accounts -H 'content-type: application/json' \
+      curl -sS -X POST http://127.0.0.1:8787/api/accounts \
+        -H 'content-type: application/json' \
         -d "{\"type\":\"onchain_wallet\",\"chain\":\"$chain\",\"label\":\"$label\",\"address_or_identifier\":\"$addr\",\"network\":\"$net\"}"
     else
-      curl -sS -X POST http://127.0.0.1:8787/api/accounts -H 'content-type: application/json' \
+      curl -sS -X POST http://127.0.0.1:8787/api/accounts \
+        -H 'content-type: application/json' \
         -d "{\"type\":\"onchain_wallet\",\"chain\":\"$chain\",\"label\":\"$label\",\"address_or_identifier\":\"$addr\"}"
     fi
     ;;
@@ -75,6 +87,12 @@ case "$cmd" in
     id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl resume ACCOUNT_ID"; exit 1; }
     curl -sS -X POST "http://127.0.0.1:8787/api/accounts/$id/resume"
     ;;
-  vault:path) echo "$VAULT_PATH" ;;
-  *) echo "[dl] unknown command: $cmd"; usage; exit 1 ;;
+  vault:path)
+    echo "$VAULT_PATH"
+    ;;
+  *)
+    echo "[dl] unknown command: $cmd"
+    usage
+    exit 1
+    ;;
 esac

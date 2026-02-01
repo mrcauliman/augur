@@ -53,6 +53,7 @@ Accounts
   dl add CHAIN ADDRESS LABEL [NETWORK]
   dl pause ACCOUNT_ID
   dl resume ACCOUNT_ID
+  dl delete ACCOUNT_ID
 
 Vault
   dl vault:path
@@ -146,6 +147,12 @@ case "$cmd" in
     id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl resume ACCOUNT_ID"; exit 1; }
     curl -sS -X POST "$API_BASE/api/accounts/$id/resume"
     ;;
+  delete)
+    id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl delete ACCOUNT_ID"; exit 1; }
+    need_api
+    curl -sS -X POST "$API_BASE/api/accounts/$id/delete"
+    ;;
+
   vault:path)
     echo "$VAULT_PATH"
     ;;

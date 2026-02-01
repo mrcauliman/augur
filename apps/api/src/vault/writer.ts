@@ -27,6 +27,28 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function isJsonl(p: string) {
+  return p.endsWith(".jsonl");
+}
+
+async function exists(p: string) {
+  try {
+    await fs.stat(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function mkdirp(p: string) {
+  await fs.mkdir(p, { recursive: true });
+}
+
+async function appendLine(p: string, line: string) {
+  await mkdirp(path.dirname(p));
+  await fs.appendFile(p, line + "\n", "utf8");
+}
+
 function normalizeNetwork(network: unknown) {
   const n = String(network || "").trim();
   return n.length ? n : undefined;
@@ -58,19 +80,6 @@ function dedupeKey(a: Pick<Account, "chain" | "network" | "address_or_identifier
   return `${chain}|${network}|${addr}`;
 }
 
-function isJsonl(p: string) {
-  return p.endsWith(".jsonl");
-}
-
-async function exists(p: string) {
-  try {
-    await fs.stat(p);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function defaultAccountsStoreCandidates(vaultPath: string) {
   return [
     path.join(vaultPath, "data/accounts/accounts.jsonl"),
@@ -85,42 +94,7 @@ async function resolveAccountsStorePath(vaultPath: string): Promise<string> {
   for (const p of candidates) {
     if (await exists(p)) return p;
   }
-
-  // Fallback: scan for any json/jsonl containing "account_id" and "status"
-  const found: string[] = [];
-  async function walk(dir: string) {
-    let entries: any[] = [];
-    try {
-      entries = await fs.readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const e of entries) {
-      const p = path.join(dir, e.name);
-      if (e.isDirectory()) {
-        await walk(p);
-        continue;
-      }
-      if (!p.endsWith(".json") && !p.endsWith(".jsonl")) continue;
-
-      try {
-        const st = await fs.stat(p);
-        if (st.size > 5_000_000) continue;
-
-        const buf = await fs.readFile(p);
-        if (!buf.includes(Buffer.from('"account_id"')) && !buf.includes(Buffer.from('"status"'))) continue;
-        found.push(p);
-      } catch {
-        continue;
-      }
-    }
-  }
-
-  await walk(vaultPath);
-
-  if (found.length) return found[0];
-
-  // Default to the standard jsonl location
+  // default to jsonl canonical location
   return path.join(vaultPath, "data/accounts/accounts.jsonl");
 }
 
@@ -142,8 +116,8 @@ async function readJsonlAccounts(p: string): Promise<Account[]> {
 
 async function writeJsonlAccounts(p: string, accounts: Account[]) {
   const tmp = `${p}.tmp`;
+  await mkdirp(path.dirname(p));
   const lines = accounts.map((a) => JSON.stringify(a));
-  await fs.mkdir(path.dirname(p), { recursive: true });
   await fs.writeFile(tmp, lines.join("\n") + "\n", "utf8");
   await fs.rename(tmp, p);
 }
@@ -163,7 +137,7 @@ async function readJsonAccounts(p: string): Promise<Account[]> {
 
 async function writeJsonAccounts(p: string, accounts: Account[]) {
   const tmp = `${p}.tmp`;
-  await fs.mkdir(path.dirname(p), { recursive: true });
+  await mkdirp(path.dirname(p));
   await fs.writeFile(tmp, JSON.stringify(accounts, null, 2) + "\n", "utf8");
   await fs.rename(tmp, p);
 }
@@ -180,11 +154,13 @@ async function writeAccountsToStore(storePath: string, accounts: Account[]) {
 }
 
 export async function ensureVault(vaultPath: string) {
-  await fs.mkdir(vaultPath, { recursive: true });
-  await fs.mkdir(path.join(vaultPath, "data/accounts"), { recursive: true });
+  await mkdirp(vaultPath);
+  await mkdirp(path.join(vaultPath, "data/accounts"));
+  await mkdirp(path.join(vaultPath, "data/events"));
+  await mkdirp(path.join(vaultPath, "data/snapshots"));
 
   const store = await resolveAccountsStorePath(vaultPath);
-  await fs.mkdir(path.dirname(store), { recursive: true });
+  await mkdirp(path.dirname(store));
 
   if (!(await exists(store))) {
     if (isJsonl(store)) {
@@ -216,9 +192,7 @@ export async function addAccount(vaultPath: string, input: NewAccountInput): Pro
 
   const incomingKey = dedupeKey({ chain, network, address_or_identifier });
   const existsAcc = accounts.find((a) => dedupeKey(a) === incomingKey);
-  if (existsAcc) {
-    return existsAcc;
-  }
+  if (existsAcc) return existsAcc;
 
   const account: Account = {
     account_id: makeAccountId(chain),
@@ -269,4 +243,32 @@ export async function purgeDeletedAccounts(vaultPath: string): Promise<{
     after,
     removed: before - after
   };
+}
+
+// Snapshot + Event writers
+// These are used by snapshot pipeline imports
+function snapshotFile(vaultPath: string, payload: any) {
+  const id = String(payload?.account_id || payload?.accountId || "").trim();
+  if (id) return path.join(vaultPath, "data/snapshots", `${id}.jsonl`);
+  return path.join(vaultPath, "data/snapshots", "snapshots.jsonl");
+}
+
+function eventFile(vaultPath: string, payload: any) {
+  const id = String(payload?.account_id || payload?.accountId || "").trim();
+  if (id) return path.join(vaultPath, "data/events", `${id}.jsonl`);
+  return path.join(vaultPath, "data/events", "events.jsonl");
+}
+
+export async function appendSnapshot(vaultPath: string, snapshot: any) {
+  await ensureVault(vaultPath);
+  const p = snapshotFile(vaultPath, snapshot);
+  await appendLine(p, JSON.stringify(snapshot));
+  return { path: p };
+}
+
+export async function appendEvent(vaultPath: string, event: any) {
+  await ensureVault(vaultPath);
+  const p = eventFile(vaultPath, event);
+  await appendLine(p, JSON.stringify(event));
+  return { path: p };
 }

@@ -117,9 +117,15 @@ case "$cmd" in
   publish)
     run_root publish:public
     ;;
+
   accounts)
     need_api
-    curl -sS "$API_BASE/api/accounts"
+    curl -sS "$API_BASE/api/accounts" | python3 - <<'PYF'
+import json,sys
+j=json.load(sys.stdin)
+j["accounts"]=[a for a in j.get("accounts",[]) if a.get("status")=="active"]
+print(json.dumps(j))
+PYF
     ;;
   add)
     need_api

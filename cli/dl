@@ -4,8 +4,35 @@ set -euo pipefail
 ROOT="/var/www/digital-ledger"
 VAULT_DEFAULT="$ROOT/vault/sample_vault"
 VAULT_PATH="${DL_VAULT_PATH:-$VAULT_DEFAULT}"
+API_BASE="http://127.0.0.1:8787"
 
 run_root() { (cd "$ROOT" && pnpm "$@"); }
+
+need_api() {
+  curl -fsS "$API_BASE/health" >/dev/null 2>&1 || {
+    echo "[dl] api not reachable on :8787"
+    echo "[dl] run: dl api"
+    exit 1
+  }
+}
+
+json() {
+  python3 - "$@" <<'PY'
+import json, sys
+# argv: alternating key value pairs
+args = sys.argv[1:]
+if len(args) % 2 != 0:
+  raise SystemExit("json() needs key value pairs")
+d = {}
+for i in range(0, len(args), 2):
+  k = args[i]
+  v = args[i+1]
+  if v == "__null__":
+    continue
+  d[k] = v
+sys.stdout.write(json.dumps(d, separators=(",",":")))
+PY
+}
 
 usage() {
   cat <<'EOF'
@@ -64,24 +91,44 @@ case "$cmd" in
     run_root publish:public
     ;;
   accounts)
-    curl -sS http://127.0.0.1:8787/api/accounts
+    need_api
+    curl -sS "$API_BASE/api/accounts"
     ;;
   add)
-    chain="${2:-}"; addr="${3:-}"; label="${4:-}"; net="${5:-}"
-    [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || { echo "[dl] usage: dl add CHAIN ADDRESS LABEL [NETWORK]"; exit 1; }
-    if [ -n "$net" ]; then
-      curl -sS -X POST http://127.0.0.1:8787/api/accounts         -H 'content-type: application/json'         -d "{"type":"onchain_wallet","chain":"$chain","label":"$label","address_or_identifier":"$addr","network":"$net"}"
-    else
-      curl -sS -X POST http://127.0.0.1:8787/api/accounts         -H 'content-type: application/json'         -d "{"type":"onchain_wallet","chain":"$chain","label":"$label","address_or_identifier":"$addr"}"
-    fi
+    need_api
+    chain="${2:-}"
+    addr="${3:-}"
+    label="${4:-}"
+    net="${5:-}"
+
+    [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || {
+      echo "[dl] usage: dl add CHAIN ADDRESS LABEL [NETWORK]"
+      exit 1
+    }
+
+    body="$(json \
+      type onchain_wallet \
+      chain "$chain" \
+      label "$label" \
+      address_or_identifier "$addr" \
+      network "${net:-__null__}" \
+    )"
+
+    curl -sS -X POST "$API_BASE/api/accounts" \
+      -H 'content-type: application/json' \
+      -d "$body"
     ;;
   pause)
-    id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl pause ACCOUNT_ID"; exit 1; }
-    curl -sS -X POST "http://127.0.0.1:8787/api/accounts/$id/pause"
+    need_api
+    id="${2:-}"
+    [ -n "$id" ] || { echo "[dl] usage: dl pause ACCOUNT_ID"; exit 1; }
+    curl -sS -X POST "$API_BASE/api/accounts/$id/pause"
     ;;
   resume)
-    id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl resume ACCOUNT_ID"; exit 1; }
-    curl -sS -X POST "http://127.0.0.1:8787/api/accounts/$id/resume"
+    need_api
+    id="${2:-}"
+    [ -n "$id" ] || { echo "[dl] usage: dl resume ACCOUNT_ID"; exit 1; }
+    curl -sS -X POST "$API_BASE/api/accounts/$id/resume"
     ;;
   vault:path)
     echo "$VAULT_PATH"

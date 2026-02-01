@@ -1,15 +1,38 @@
 import { z } from "zod";
 
+export const ChainSchema = z.enum([
+  "xrpl",
+  "evm",
+  "btc",
+  "sol",
+  "ada",
+  "hbar",
+  "xlm"
+]);
+export type Chain = z.infer<typeof ChainSchema>;
+
+export const AccountTypeSchema = z.enum([
+  "onchain_wallet",
+  "exchange",
+  "merchant",
+  "custom",
+  "manual"
+]);
+export type AccountType = z.infer<typeof AccountTypeSchema>;
+
+export const AccountStatusSchema = z.enum(["active", "paused", "deleted"]);
+export type AccountStatus = z.infer<typeof AccountStatusSchema>;
+
 export const AccountSchema = z.object({
   account_id: z.string(),
-  type: z.enum(["onchain_wallet", "exchange", "manual"]),
-  chain: z.enum(["xrpl", "evm", "btc", "sol", "other", "exchange"]),
+  type: AccountTypeSchema,
+  chain: ChainSchema,
   label: z.string(),
   address_or_identifier: z.string(),
+  network: z.string().optional(),
   created_at: z.string(),
-  status: z.enum(["active", "paused"])
+  status: AccountStatusSchema
 });
-
 export type Account = z.infer<typeof AccountSchema>;
 
 export const SnapshotSchema = z.object({
@@ -20,7 +43,6 @@ export const SnapshotSchema = z.object({
   token_balances: z.array(z.object({ asset_id: z.string(), amount: z.string() })),
   metadata: z.record(z.any()).default({})
 });
-
 export type Snapshot = z.infer<typeof SnapshotSchema>;
 
 export const EventSchema = z.object({
@@ -50,5 +72,4 @@ export const EventSchema = z.object({
   note: z.string().default(""),
   raw_ref: z.record(z.any()).default({})
 });
-
 export type Event = z.infer<typeof EventSchema>;

@@ -32,8 +32,9 @@ Core
 
 Accounts
   dl accounts
-  dl add CHAIN ADDRESS LABEL
+  dl add CHAIN ADDRESS LABEL [NETWORK]
   dl pause ACCOUNT_ID
+  dl resume ACCOUNT_ID
 
 Vault
   dl vault:path
@@ -48,24 +49,48 @@ case "$cmd" in
     echo "[dl] vault $VAULT_PATH"
     echo "[dl] git $(cd "$ROOT" && git rev-parse --short HEAD)"
     ;;
-  vault:path) echo "$VAULT_PATH" ;;
-  api) need_repo; run_root dev:api ;;
+  vault:path)
+    echo "$VAULT_PATH"
+    ;;
+  api)
+    need_repo
+    run_root dev:api
+    ;;
   api:stop)
     if command -v lsof >/dev/null 2>&1; then
       pid="$(lsof -t -i :8787 -sTCP:LISTEN 2>/dev/null | head -n1 || true)"
-      if [ -n "${pid:-}" ]; then kill -9 "$pid" || true; echo "[dl] killed pid $pid on :8787"; else echo "[dl] nothing listening on :8787"; fi
+      if [ -n "${pid:-}" ]; then
+        kill -9 "$pid" || true
+        echo "[dl] killed pid $pid on :8787"
+      else
+        echo "[dl] nothing listening on :8787"
+      fi
     else
       echo "[dl] install lsof first"
       exit 1
     fi
     ;;
-  accounts) curl -sS http://127.0.0.1:8787/api/accounts; echo ;;
+  accounts)
+    curl -sS http://127.0.0.1:8787/api/accounts
+    echo
+    ;;
   add)
-    chain="${2:-}"; addr="${3:-}"; label="${4:-}"
-    [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || { echo "[dl] usage: dl add CHAIN ADDRESS LABEL"; exit 1; }
-    curl -sS -X POST http://127.0.0.1:8787/api/accounts \
-      -H 'content-type: application/json' \
-      -d "{\"type\":\"onchain_wallet\",\"chain\":\"$chain\",\"label\":\"$label\",\"address_or_identifier\":\"$addr\"}"
+    chain="${2:-}"
+    addr="${3:-}"
+    label="${4:-}"
+    net="${5:-}"
+
+    [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || { echo "[dl] usage: dl add CHAIN ADDRESS LABEL [NETWORK]"; exit 1; }
+
+    if [ -n "$net" ]; then
+      curl -sS -X POST http://127.0.0.1:8787/api/accounts \
+        -H 'content-type: application/json' \
+        -d "{\"type\":\"onchain_wallet\",\"chain\":\"$chain\",\"label\":\"$label\",\"address_or_identifier\":\"$addr\",\"network\":\"$net\"}"
+    else
+      curl -sS -X POST http://127.0.0.1:8787/api/accounts \
+        -H 'content-type: application/json' \
+        -d "{\"type\":\"onchain_wallet\",\"chain\":\"$chain\",\"label\":\"$label\",\"address_or_identifier\":\"$addr\"}"
+    fi
     echo
     ;;
   pause)
@@ -74,16 +99,34 @@ case "$cmd" in
     curl -sS -X POST "http://127.0.0.1:8787/api/accounts/$acct/pause"
     echo
     ;;
-  snapshot) need_repo; DL_VAULT_PATH="$VAULT_PATH" run_root snapshot ;;
+  resume)
+    acct="${2:-}"
+    [ -n "$acct" ] || { echo "[dl] usage: dl resume ACCOUNT_ID"; exit 1; }
+    curl -sS -X POST "http://127.0.0.1:8787/api/accounts/$acct/resume"
+    echo
+    ;;
+  snapshot)
+    need_repo
+    DL_VAULT_PATH="$VAULT_PATH" run_root snapshot
+    ;;
   monthly)
     need_repo
     month="${2:-}"
     [ -n "$month" ] || { echo "[dl] usage: dl monthly YYYY-MM"; exit 1; }
     DL_VAULT_PATH="$VAULT_PATH" run_root monthly "$month"
     ;;
-  publish) need_repo; DL_VAULT_PATH="$VAULT_PATH" run_root publish:public ;;
-  help|-h|--help|"") usage ;;
-  *) echo "[dl] unknown command: $cmd"; usage; exit 1 ;;
+  publish)
+    need_repo
+    DL_VAULT_PATH="$VAULT_PATH" run_root publish:public
+    ;;
+  help|-h|--help|"")
+    usage
+    ;;
+  *)
+    echo "[dl] unknown command: $cmd"
+    usage
+    exit 1
+    ;;
 esac
 BASH
 

@@ -50,6 +50,7 @@ Core
 
 Accounts
   dl accounts
+  dl accounts:all
   dl add CHAIN ADDRESS LABEL [NETWORK]
   dl pause ACCOUNT_ID
   dl resume ACCOUNT_ID

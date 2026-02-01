@@ -21,7 +21,13 @@ export function routes(app: Express) {
     }
 
     await ensureVault(CONFIG.vaultPath);
-    const account = await addAccount(CONFIG.vaultPath, { type, chain, label, address_or_identifier, network });
+    const account = await addAccount(CONFIG.vaultPath, {
+      type,
+      chain,
+      label,
+      address_or_identifier,
+      network
+    });
     res.json({ ok: true, account });
   });
 
@@ -35,11 +41,11 @@ export function routes(app: Express) {
     await ensureVault(CONFIG.vaultPath);
     const account = await setAccountStatus(CONFIG.vaultPath, req.params.id, "active");
     res.json({ ok: true, account });
+  });
 
   app.post("/api/accounts/:id/delete", async (req, res) => {
     await ensureVault(CONFIG.vaultPath);
     const account = await setAccountStatus(CONFIG.vaultPath, req.params.id, "deleted");
     res.json({ ok: true, account });
-  });
   });
 }

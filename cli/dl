@@ -12,30 +12,13 @@ run_root() { (cd "$ROOT" && pnpm "$@"); }
 need_api() {
   curl -fsS "$API_BASE/health" >/dev/null 2>&1 || {
     echo "[dl] api not reachable on :8787"
-    echo "[dl] run: dl api"
+    echo "[dl] run: dl api or dl api:bg"
     exit 1
   }
 }
 
-json_kv() {
-  python3 - "$@" <<'PY'
-import json, sys
-args = sys.argv[1:]
-if len(args) % 2 != 0:
-  raise SystemExit("[dl] json_kv needs key value pairs")
-d = {}
-for i in range(0, len(args), 2):
-  k = args[i]
-  v = args[i+1]
-  if v == "__null__":
-    continue
-  d[k] = v
-print(json.dumps(d))
-PY
-}
-
 usage() {
-  cat <<'EOF'
+  cat <<'TXT'
 DL CLI
 
 Core
@@ -49,8 +32,8 @@ Core
   dl publish
 
 Accounts
-  dl accounts
-  dl accounts:all
+  dl accounts        active only
+  dl accounts:all    all statuses
   dl add CHAIN ADDRESS LABEL [NETWORK]
   dl pause ACCOUNT_ID
   dl resume ACCOUNT_ID
@@ -58,102 +41,130 @@ Accounts
 
 Vault
   dl vault:path
-EOF
+TXT
 }
 
-cmd="${1:-}"
-case "$cmd" in
-  ""|"-h"|"--help")
-    usage
-    ;;
-  status)
-    echo "[dl] root $ROOT"
-    echo "[dl] vault $VAULT_PATH"
-    echo "[dl] git $(cd "$ROOT" && git rev-parse --short HEAD)"
-    ;;
-  api)
-    run_root dev:api
-    ;;
-  api:bg)
-    if curl -fsS "$API_BASE/health" >/dev/null 2>&1; then
-      echo "[dl] api already up"
-      exit 0
-    fi
-    (
-      cd "$ROOT/apps/api"
-      nohup pnpm start </dev/null >"$LOG_FILE" 2>&1 &
-      disown || true
-    )
-    sleep 1
-    if curl -fsS "$API_BASE/health" >/dev/null 2>&1; then
-      echo "[dl] api up (bg) log=$LOG_FILE"
-    else
-      echo "[dl] api failed to start, log follows"
-      sed -n '1,200p' "$LOG_FILE" || true
-      exit 1
-    fi
-    ;;
-  api:logs)
-    [ -f "$LOG_FILE" ] || { echo "[dl] no log at $LOG_FILE"; exit 1; }
-    tail -n 120 "$LOG_FILE"
-    ;;
-  api:stop)
-    pid="$(lsof -t -i :8787 2>/dev/null || true)"
+kill_port() {
+  local port="$1"
+  local pid
+  pid="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+  if [ -n "${pid:-}" ]; then
+    kill "$pid" || true
+    sleep 0.2
+    pid="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
     if [ -n "${pid:-}" ]; then
       kill -9 "$pid" || true
-      echo "[dl] killed :8787 pid=$pid"
-    else
-      echo "[dl] nothing on :8787"
     fi
+    echo "[dl] killed :$port"
+  else
+    echo "[dl] nothing on :$port"
+  fi
+}
+
+wait_health() {
+  local tries=40
+  local i=0
+  while [ "$i" -lt "$tries" ]; do
+    if curl -fsS "$API_BASE/health" >/dev/null 2>&1; then
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 0.15
+  done
+  return 1
+}
+
+cmd="${1:-help}"
+
+case "$cmd" in
+  help|--help|-h)
+    usage
     ;;
+
+  status)
+    need_api
+    curl -sS "$API_BASE/health"
+    ;;
+
+  api)
+    run_root -C apps/api dev
+    ;;
+
+  api:bg)
+    : >"$LOG_FILE" || true
+    nohup bash -lc "cd '$ROOT' && pnpm -C apps/api start" >"$LOG_FILE" 2>&1 &
+    disown || true
+
+    if wait_health; then
+      echo "[dl] api up (bg) log=$LOG_FILE"
+      curl -sS "$API_BASE/health" || true
+      exit 0
+    fi
+
+    echo "[dl] api not healthy yet, see log=$LOG_FILE"
+    tail -n 80 "$LOG_FILE" || true
+    exit 1
+    ;;
+
+  api:stop)
+    kill_port 8787
+    ;;
+
+  api:logs)
+    tail -n 200 -f "$LOG_FILE"
+    ;;
+
   snapshot)
-    run_root snapshot
+    run_root -C apps/api snapshot
     ;;
+
   monthly)
-    m="${2:-}"
-    [ -n "$m" ] || { echo "[dl] missing YYYY-MM"; exit 1; }
-    run_root monthly "$m"
+    month="${2:-}"
+    [ -n "$month" ] || { echo "[dl] usage: dl monthly YYYY-MM"; exit 1; }
+    run_root -C apps/api monthly "$month"
     ;;
+
   publish)
-    run_root publish:public
+    run_root -C apps/api publish
     ;;
 
   accounts)
     need_api
-    curl -sS "$API_BASE/api/accounts" | python3 - <<'PYF'
-import json,sys
-j=json.load(sys.stdin)
-j["accounts"]=[a for a in j.get("accounts",[]) if a.get("status")=="active"]
-print(json.dumps(j))
-PYF
+    curl -sS "$API_BASE/api/accounts"
     ;;
-  add)
+
+  accounts:all)
     need_api
+    curl -sS "$API_BASE/api/accounts?all=1"
+    ;;
+
+  add)
     chain="${2:-}"; addr="${3:-}"; label="${4:-}"; net="${5:-}"
     [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || { echo "[dl] usage: dl add CHAIN ADDRESS LABEL [NETWORK]"; exit 1; }
-
-    payload="$(json_kv \
-      type onchain_wallet \
-      chain "$chain" \
-      label "$label" \
-      address_or_identifier "$addr" \
-      network "${net:-__null__}" \
-    )"
-
-    curl -sS -X POST "$API_BASE/api/accounts" \
-      -H 'content-type: application/json' \
-      -d "$payload"
-    ;;
-  pause)
     need_api
+    if [ -n "${net:-}" ]; then
+      curl -sS -X POST "$API_BASE/api/accounts" \
+        -H "content-type: application/json" \
+        -d "{\"type\":\"onchain_wallet\",\"chain\":\"$chain\",\"label\":\"$label\",\"address_or_identifier\":\"$addr\",\"network\":\"$net\"}"
+    else
+      curl -sS -X POST "$API_BASE/api/accounts" \
+        -H "content-type: application/json" \
+        -d "{\"type\":\"onchain_wallet\",\"chain\":\"$chain\",\"label\":\"$label\",\"address_or_identifier\":\"$addr\"}"
+    fi
+    ;;
+
+  pause)
     id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl pause ACCOUNT_ID"; exit 1; }
+    need_api
     curl -sS -X POST "$API_BASE/api/accounts/$id/pause"
     ;;
+
   resume)
-    need_api
     id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl resume ACCOUNT_ID"; exit 1; }
+    need_api
     curl -sS -X POST "$API_BASE/api/accounts/$id/resume"
     ;;
+
   delete)
     id="${2:-}"; [ -n "$id" ] || { echo "[dl] usage: dl delete ACCOUNT_ID"; exit 1; }
     need_api
@@ -163,6 +174,7 @@ PYF
   vault:path)
     echo "$VAULT_PATH"
     ;;
+
   *)
     echo "[dl] unknown command: $cmd"
     usage

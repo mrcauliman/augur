@@ -7,6 +7,9 @@ import { evmFetchSnapshot } from "../observers/evm.js";
 import { btcFetchSnapshot } from "../observers/btc.js";
 import { solFetchSnapshot } from "../observers/sol.js";
 import { xrplFetchEvents } from "../observers/xrpl_events.js";
+import { xlmFetchSnapshot } from "../observers/xlm.js";
+import { hbarFetchSnapshot } from "../observers/hbar.js";
+import { adaFetchSnapshot } from "../observers/ada.js";
 
 export async function snapshotAccount(vaultPath: string, account: Account, lastSeen: LastSeen, dedupe: Dedupe) {
   const ts = nowIso();
@@ -28,29 +31,46 @@ export async function snapshotAccount(vaultPath: string, account: Account, lastS
       dedupe,
       200
     );
+    for (const e of evts) await appendEvent(vaultPath, "xrpl", account.account_id, e);
 
-    console.log(`[dl] xrpl events fetched ${evts.length} for ${account.account_id}`);
-
-    for (const e of evts) {
-      await appendEvent(vaultPath, "xrpl", account.account_id, e);
-    }
   } else if (account.chain === "evm") {
     const s = await evmFetchSnapshot(account.address_or_identifier);
     native_balance = s.native_balance;
     token_balances = s.token_balances;
     metadata = s.metadata;
+
   } else if (account.chain === "btc") {
     const s = await btcFetchSnapshot(account.address_or_identifier);
     native_balance = s.native_balance;
     token_balances = s.token_balances;
     metadata = s.metadata;
+
   } else if (account.chain === "sol") {
     const s = await solFetchSnapshot(account.address_or_identifier);
     native_balance = s.native_balance;
     token_balances = s.token_balances;
     metadata = s.metadata;
+
+  } else if (account.chain === "xlm") {
+    const s = await xlmFetchSnapshot(account.address_or_identifier);
+    native_balance = s.native_balance;
+    token_balances = s.token_balances;
+    metadata = s.metadata;
+
+  } else if (account.chain === "hbar") {
+    const s = await hbarFetchSnapshot(account.address_or_identifier);
+    native_balance = s.native_balance;
+    token_balances = s.token_balances;
+    metadata = s.metadata;
+
+  } else if (account.chain === "ada") {
+    const s = await adaFetchSnapshot(account.address_or_identifier);
+    native_balance = s.native_balance;
+    token_balances = s.token_balances;
+    metadata = s.metadata;
+
   } else {
-    metadata = { note: "unsupported chain in v1 snapshot" };
+    metadata = { note: "unsupported chain in v1 snapshot", chain: account.chain };
   }
 
   const snap: Snapshot = {

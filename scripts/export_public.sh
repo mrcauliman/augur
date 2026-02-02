@@ -1,22 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VAULT="${DL_VAULT_PATH:-$ROOT/vault/sample_vault}"
+ROOT="/var/www/augur"
+MONTH="${1:-}"
 
-# month arg optional, defaults to current YYYY-MM in UTC
-MONTH="${1:-$(date -u +%Y-%m)}"
+[ -n "$MONTH" ] || {
+  echo "[augur] usage: export_public.sh YYYY-MM"
+  exit 1
+}
 
-SRC="$VAULT/reports/monthly/$MONTH/summary.json"
-DST="$ROOT/public_data/summary.json"
+SRC="$ROOT/vault/sample_vault/reports/monthly/$MONTH/summary.json"
+DST_DIR="$ROOT/public_data"
+DST="$DST_DIR/summary.json"
 
 if [ ! -f "$SRC" ]; then
-  echo "[dl] missing monthly summary: $SRC"
-  echo "[dl] run: pnpm monthly $MONTH"
+  echo "[augur] missing monthly summary: $SRC"
+  echo "[augur] run: augur monthly $MONTH"
   exit 1
 fi
 
-mkdir -p "$(dirname "$DST")"
+mkdir -p "$DST_DIR"
 cp -f "$SRC" "$DST"
 
-echo "[dl] exported $MONTH -> public_data/summary.json"
+echo "[augur] exported $MONTH -> public_data/summary.json"

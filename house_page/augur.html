@@ -1,161 +1,142 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
- <meta charset="UTF-8" />
- <meta name="viewport" content="width=device-width,initial-scale=1" />
- <title>AUGUR — House of Cauliman</title>
- <meta name="description" content="AUGUR is a Chain Oracle. Read-only. Public data only. No wallet connection. No keys. No custody." />
-
- <meta property="og:title" content="AUGUR — House of Cauliman" />
- <meta property="og:description" content="Chain Oracle for public wallets. Read-only. Public data only. No wallet connection. No keys. No custody." />
- <meta property="og:type" content="website" />
-
- <style>
- :root{
- --bg:#070a0e;
- --panel:#0d141d;
- --panel2:#0b1118;
- --fg:#e7eef8;
- --muted:#9fb0c6;
- --line:#203048;
- --a:#8fb7ff;
- --good:#2ecc71;
- --warn:#f1c40f;
- --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
- --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
- }
- html,body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans)}
- .wrap{max-width:1100px;margin:0 auto;padding:32px 16px 80px}
- .top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
- .brand{display:flex;align-items:center;gap:12px}
- .mark{
- width:44px;height:44px;border-radius:14px;
- border:1px solid var(--line);
- background:linear-gradient(180deg,#121a24,#0b1118);
- display:grid;place-items:center;
- font-weight:900;letter-spacing:.6px;
- }
- h1{margin:0;font-size:30px;letter-spacing:.2px}
- p{margin:10px 0;color:var(--muted);line-height:1.55}
- a{color:var(--a);text-decoration:none}
- a:hover{text-decoration:underline}
- .ctaRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
- .btn{
- display:inline-block;
- padding:10px 14px;
- border-radius:12px;
- border:1px solid var(--line);
- background:linear-gradient(180deg,var(--panel),var(--panel2));
- color:var(--fg);
- text-decoration:none;
- font-weight:800;
- }
- .btn.secondary{color:var(--a)}
- .grid{display:grid;gap:12px;margin-top:16px}
- @media(min-width:900px){.grid{grid-template-columns:1.15fr .85fr}}
- .card{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--panel2));padding:16px}
- .k{display:inline-block;padding:2px 8px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:12px;margin-right:8px;margin-bottom:8px}
- .hr{height:1px;background:var(--line);margin:16px 0}
- pre{margin:0;background:#05070a;border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto;font-family:var(--mono);font-size:12.5px;line-height:1.45;color:#cfe4ff}
- ul{color:var(--muted);line-height:1.7;margin:8px 0 0 18px}
- .row{display:flex;gap:10px;flex-wrap:wrap}
- .pill{border:1px solid var(--line);border-radius:999px;padding:6px 10px;color:var(--muted);font-size:12px}
- .good{color:var(--good)}
- .warn{color:var(--warn)}
- .foot{margin-top:18px;color:var(--muted);font-size:12px}
- </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AUGUR — House of Cauliman</title>
+  <meta name="description" content="AUGUR is a Chain Oracle. Read-only. Public data only. No wallet connection. No keys. No custody." />
+  <meta property="og:title" content="AUGUR — House of Cauliman" />
+  <meta property="og:description" content="Chain Oracle for public wallets. Read-only. Public data only. No wallet connection. No keys. No custody." />
+  <meta property="og:type" content="website" />
+  <style>
+    :root{
+      --bg:#070a0e;
+      --panel:#0d141d;
+      --panel2:#0b1118;
+      --fg:#e7eef8;
+      --muted:#9fb0c6;
+      --line:#203048;
+      --a:#8fb7ff;
+      --good:#2ecc71;
+      --warn:#f1c40f;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);line-height:1.45}
+    a{color:var(--a);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .wrap{max-width:980px;margin:0 auto;padding:28px 18px 44px}
+    header{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .brand{display:flex;gap:14px;align-items:center}
+    .logo{height:110px;width:auto;display:block}
+    h1{margin:0;font-size:34px;letter-spacing:.2px}
+    .sub{margin:6px 0 0;color:var(--muted);max-width:64ch}
+    .row{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin-top:18px}
+    @media (max-width:900px){.row{grid-template-columns:1fr}}
+    .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:16px;padding:16px}
+    .pillrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);background:rgba(255,255,255,.02);font-size:13px}
+    .dot{width:8px;height:8px;border-radius:50%}
+    .good{background:var(--good)}
+    .warn{background:var(--warn)}
+    .k{font-family:var(--mono);font-size:13px;color:#cfe2ff}
+    .steps{margin:10px 0 0;padding-left:18px;color:var(--muted)}
+    .steps li{margin:7px 0}
+    .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    .btn{display:inline-block;padding:10px 14px;border-radius:12px;background:var(--a);color:#070a0e;font-weight:800}
+    .btn.secondary{background:transparent;border:1px solid var(--line);color:var(--fg);font-weight:700}
+    .small{color:var(--muted);font-size:13px}
+    .foot{margin-top:22px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:14px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media (max-width:900px){.grid2{grid-template-columns:1fr}}
+    ul.clean{margin:10px 0 0;padding-left:18px;color:var(--muted)}
+    ul.clean li{margin:6px 0}
+  </style>
 </head>
 <body>
- <div class="wrap">
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <img class="logo" src="/augur/assets/augur_logo.png" alt="AUGUR" />
+        <div>
+          <h1>AUGUR</h1>
+          <p class="sub">A Chain Oracle that reads public wallets and produces plain-English statements. Read-only. Public data only. No wallet connection. No keys. No custody.</p>
+          <div class="pillrow">
+            <span class="pill"><span class="dot good"></span> read-only</span>
+            <span class="pill"><span class="dot good"></span> public data</span>
+            <span class="pill"><span class="dot good"></span> no wallet connection</span>
+            <span class="pill"><span class="dot good"></span> no keys</span>
+            <span class="pill"><span class="dot good"></span> no custody</span>
+          </div>
+        </div>
+      </div>
 
- <div class="top">
- <div class="brand">
- <div class="mark"></div>
- <div>
- <h1>AUGUR</h1>
- <div class="k"> v1</div><div class="k">House of Cauliman</div>
- </div>
- </div>
+      <div class="btns">
+        <a class="btn" href="#waitlist">Join waitlist</a>
+        <a class="btn secondary" href="/">Back to House</a>
+      </div>
+    </header>
 
- <div>
- <div class="ctaRow">
- <a class="btn" href="/dl/runbook.html">Runbook</a>
- <a class="btn secondary" href="/dl/app/">Open App</a>
- <a class="btn secondary" href="/collections/">Back to House</a>
- </div>
- <p style="margin:10px 0 0">Local-first finance vault. Public wallets in. Monthly clarity out.</p>
- </div>
- </div>
+    <div class="row">
+      <section class="card">
+        <h2 style="margin:0 0 8px 0">What it does</h2>
+        <div class="grid2">
+          <div>
+            <div class="small" style="font-weight:800;color:var(--fg)">You give it</div>
+            <ul class="clean">
+              <li>Public wallet addresses</li>
+              <li>Chain selection (XRPL first)</li>
+              <li>Optional labels for clarity</li>
+            </ul>
+          </div>
+          <div>
+            <div class="small" style="font-weight:800;color:var(--fg)">It gives you</div>
+            <ul class="clean">
+              <li>Plain-English statements</li>
+              <li>Organized snapshots and summaries</li>
+              <li>Exportable data for your own records</li>
+            </ul>
+          </div>
+        </div>
 
- <div class="grid">
- <div class="card">
- <span class="k">what we built</span><span class="k">why it matters</span>
- <p> is a vault-backed ledger for digital finances. You add public addresses. pulls history. writes events and snapshots to a local vault. Then generates monthly summaries you can actually use.</p>
+        <h2 style="margin:14px 0 8px 0">How it works</h2>
+        <ol class="steps">
+          <li>Add public addresses</li>
+          <li>AUGUR reads public chain history only</li>
+          <li>AUGUR generates statements and exports</li>
+        </ol>
 
- <div class="hr"></div>
+        <div class="small" style="margin-top:10px">
+          No signing, no seed phrases, no private keys. If a future feature needs authentication, it happens outside the oracle and stays optional.
+        </div>
+      </section>
 
- <div class="row">
- <div class="pill"><span class="good">local-first</span> your vault, your data</div>
- <div class="pill"><span class="good">audit-ready</span> JSONL event trail</div>
- <div class="pill"><span class="good">multi-chain</span> XRPL first, then more</div>
- <div class="pill"><span class="warn">no keys stored</span> public addresses only</div>
- </div>
+      <aside class="card">
+        <h2 style="margin:0 0 8px 0">Quick facts</h2>
+        <ul class="clean">
+          <li><span class="k">Read-only</span> means it never moves funds</li>
+          <li><span class="k">Public data only</span> means no secrets required</li>
+          <li><span class="k">No wallet connection</span> means no popups, no approvals</li>
+          <li><span class="k">No keys</span> means nothing to steal</li>
+          <li><span class="k">No custody</span> means you stay in control</li>
+        </ul>
 
- <div class="hr"></div>
+        <h2 style="margin:14px 0 8px 0">Contact</h2>
+        <div class="small">
+          Email: <a href="mailto:augurintel@gmail.com">augurintel@gmail.com</a>
+        </div>
 
- <span class="k"> v1 scope</span>
- <ul>
- <li>XRPL ingest: transfers in, transfers out, fees</li>
- <li>Monthly report: totals and counts per account</li>
- <li>Indexes: last_seen + tx_dedupe so re-runs stay clean</li>
- <li>Observers for EVM, BTC, SOL exist as stubs, wired later</li>
- </ul>
+        <section id="waitlist" class="card" style="margin-top:14px">
+          <h2 style="margin:0 0 8px 0">AUGUR Waitlist</h2>
+          <p class="small" style="margin:0 0 12px 0">Early access updates. First public demo statement. No noise.</p>
+          <a class="btn" href="#waitlist">Join the waitlist</a>
+          <p class="small" style="margin:12px 0 0">Waitlist form is being wired up. Check back soon.</p>
+        </section>
+      </aside>
+    </div>
 
- <div class="hr"></div>
-
- <span class="k">what this does that others don’t</span>
- <ul>
- <li>Most trackers show a dashboard, then your data disappears into their platform</li>
- <li> writes a vault you can version, back up, and prove</li>
- <li> produces a clean monthly ledger output, not a “pretty chart” addiction loop</li>
- </ul>
- </div>
-
- <div class="card">
- <span class="k">how it works</span>
- <pre>1) Add public wallet address
-2) Snapshot pulls balances + events
-3) Vault writes:
- data/events
- data/snapshots
- data/indexes
-4) Monthly job outputs:
- reports/monthly/YYYY-MM/summary.json</pre>
-
- <div class="hr"></div>
-
- <span class="k">sample commands</span>
- <pre>pnpm snapshot
-pnpm monthly 2026-01
-
-cat vault/sample_vault/reports/monthly/2026-01/summary.json</pre>
-
- <div class="hr"></div>
-
- <span class="k">privacy rules</span>
- <ul>
- <li>No seed phrases, no private keys, no signing inside v1</li>
- <li>Premium features later can use Xaman sign-in, outside the vault</li>
- </ul>
- </div>
- </div>
-
- <div class="card" style="margin-top:12px">
- <span class="k">next</span><span class="k">ship</span>
- <p>Next we publish the app shell under <span class="k">/dl/app/</span> and render the monthly summary in a clean UI. Then we mount the API behind nginx and make it reachable by the House site.</p>
- </div>
-
- <div class="foot">House of Cauliman Project — AUGUR </div>
- </div>
+    <div class="foot">House of Cauliman Project — AUGUR</div>
+  </div>
 </body>
 </html>

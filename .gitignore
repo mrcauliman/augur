@@ -66,3 +66,16 @@ scripts/recover_api.sh
 scripts/recover_api_and_seed_accounts.sh
 scripts/recover_api_wait_verify.sh
 scripts/test_json_outputs.sh
+
+# local exports
+public_exports/
+apps/api/data/*.json
+apps/api/data/*.jsonl
+
+# local backups
+apps/api/src/*.bak.*
+*.bak
+
+# local scratch
+PATH_FROM_GREP
+/tmp/augur_cli_dbg/

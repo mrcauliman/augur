@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="/var/www/augur"
+
+VAULT_DEFAULT="$ROOT/vault/sample_vault"
+VAULT_PATH="${AUGUR_VAULT_PATH:-${DL_VAULT_PATH:-$VAULT_DEFAULT}}"
+
+API_BASE="${AUGUR_API_BASE:-http://127.0.0.1:8787}"
+LOG_FILE="${AUGUR_LOG_FILE:-/tmp/augur_api.log}"
+PID_FILE="/tmp/augur_api.pid"
+PORT="8787"
+
+run_root() { (cd "$ROOT" && pnpm "$@"); }
+
+is_listening() {
+  ss -ltnp 2>/dev/null | grep -qE "[:.]${PORT}\s"
+}
+
+listener_pid() {
+  ss -ltnp 2>/dev/null | awk -v p=":${PORT}" '$0 ~ p && $0 ~ /LISTEN/ {print $0}' \
+    | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | head -n 1
+}
+
+need_api() {
+  curl -fsS "$API_BASE/health" >/dev/null 2>&1 || {
+    echo "[augur] api not reachable on :$PORT"
+    echo "[augur] run: augur api or augur api:bg"
+    exit 1
+  }
+}
+
+usage() {
+  cat <<'TXT'
+AUGUR CLI
+
+Core
+  augur status
+  augur api            foreground api server
+  augur api:bg         background api server
+  augur api:stop       stop :8787
+  augur api:logs       tail api log
+  augur snapshot
+  augur monthly YYYY-MM
+  augur publish
+
+Accounts
+  augur accounts        active only
+  augur accounts:all    all statuses
+  augur add CHAIN ADDRESS "LABEL" [NETWORK]
+  augur pause ACCOUNT_ID
+  augur resume ACCOUNT_ID
+  augur delete ACCOUNT_ID
+  augur purge:deleted
+
+Environment
+  AUGUR_VAULT_PATH   override vault path
+  AUGUR_API_BASE     override api base (default http://127.0.0.1:8787)
+  AUGUR_LOG_FILE     override log file (default /tmp/augur_api.log)
+TXT
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  ""|-h|--help|help)
+    usage
+    exit 0
+    ;;
+
+  status)
+    printf '{"root":"%s","vault":"%s","api":"%s","log":"%s"}\n' "$ROOT" "$VAULT_PATH" "$API_BASE" "$LOG_FILE"
+    ;;
+
+  api)
+    if is_listening; then
+      echo "[augur] already listening on :$PORT"
+      exit 0
+    fi
+    run_root dev:api
+    ;;
+
+  api:bg)
+    if is_listening; then
+      echo "[augur] already listening on :$PORT"
+      exit 0
+    fi
+
+    : > "$LOG_FILE" || true
+
+    # start detached so your shell stays clean
+    nohup bash -lc "cd '$ROOT' && pnpm dev:api" >>"$LOG_FILE" 2>&1 &
+    echo $! > "$PID_FILE" || true
+
+    # wait for health
+    for _ in $(seq 1 30); do
+      if curl -fsS "$API_BASE/health" >/dev/null 2>&1; then
+        echo "[augur] api up (bg) log=$LOG_FILE"
+        exit 0
+      fi
+      sleep 0.25
+    done
+
+    echo "[augur] api not healthy yet, see log=$LOG_FILE"
+    exit 1
+    ;;
+
+  api:stop)
+    pid="$(listener_pid || true)"
+    if [ -n "${pid:-}" ]; then
+      kill "$pid" 2>/dev/null || true
+      sleep 0.25
+      echo "[augur] killed :$PORT"
+      exit 0
+    fi
+    echo "[augur] nothing on :$PORT"
+    ;;
+
+  api:logs)
+    if [ -f "$LOG_FILE" ]; then
+      tail -n 200 "$LOG_FILE"
+    else
+      echo "[augur] no log at $LOG_FILE"
+    fi
+    ;;
+
+  snapshot)
+    need_api
+    run_root snapshot
+    ;;
+
+  monthly)
+    month="${2:-}"
+    [ -n "${month:-}" ] || { echo "[augur] usage: augur monthly YYYY-MM"; exit 1; }
+    need_api
+    run_root monthly "$month"
+    ;;
+
+  publish)
+    need_api
+    run_root publish
+    ;;
+
+  accounts)
+    need_api
+    curl -fsS "$API_BASE/api/accounts"
+    ;;
+
+  accounts:all)
+    need_api
+    curl -fsS "$API_BASE/api/accounts/all"
+    ;;
+
+  add)
+    chain="${2:-}"
+    addr="${3:-}"
+    label="${4:-}"
+    network="${5:-}"
+    [ -n "${chain:-}" ] && [ -n "${addr:-}" ] && [ -n "${label:-}" ] || {
+      echo '[augur] usage: augur add CHAIN ADDRESS "LABEL" [NETWORK]'
+      exit 1
+    }
+    need_api
+    curl -fsS -X POST "$API_BASE/api/accounts" \
+      -H "content-type: application/json" \
+      -d "$(printf '{"chain":"%s","address_or_identifier":"%s","label":"%s","network":"%s"}' \
+        "$chain" "$addr" "$label" "${network:-}")"
+    ;;
+
+  pause)
+    id="${2:-}"; [ -n "${id:-}" ] || { echo "[augur] usage: augur pause ACCOUNT_ID"; exit 1; }
+    need_api
+    curl -fsS -X POST "$API_BASE/api/accounts/$id/pause"
+    ;;
+
+  resume)
+    id="${2:-}"; [ -n "${id:-}" ] || { echo "[augur] usage: augur resume ACCOUNT_ID"; exit 1; }
+    need_api
+    curl -fsS -X POST "$API_BASE/api/accounts/$id/resume"
+    ;;
+
+  delete)
+    id="${2:-}"; [ -n "${id:-}" ] || { echo "[augur] usage: augur delete ACCOUNT_ID"; exit 1; }
+    need_api
+    curl -fsS -X DELETE "$API_BASE/api/accounts/$id"
+    ;;
+
+  purge:deleted)
+    need_api
+    curl -fsS -X POST "$API_BASE/api/accounts/purge_deleted"
+    ;;
+
+  *)
+    echo "[augur] unknown command: $cmd"
+    usage
+    exit 1
+    ;;
+esac

@@ -4,10 +4,14 @@ set -euo pipefail
 ROOT="/var/www/augur"
 VAULT_DEFAULT="$ROOT/vault/sample_vault"
 VAULT_PATH="${AUGUR_VAULT_PATH:-${DL_VAULT_PATH:-$VAULT_DEFAULT}}"
-API_BASE="http://127.0.0.1:8787"
-LOG_FILE="/tmp/augur_api.log"
+API_BASE="${AUGUR_API_BASE:-http://127.0.0.1:8787}"
+LOG_FILE="${AUGUR_LOG_FILE:-/tmp/augur_api.log}"
 
 run_root() { (cd "$ROOT" && pnpm "$@"); }
+
+port_listening() {
+  ss -ltnp 2>/dev/null | grep -q ":8787"
+}
 
 need_api() {
   curl -fsS "$API_BASE/health" >/dev/null 2>&1 || {
@@ -23,9 +27,9 @@ AUGUR CLI
 
 Core
   augur status
-  augur api            foreground api
-  augur api:bg         background api
-  augur api:stop       stop port 8787 listener
+  augur api            foreground api server
+  augur api:bg         background api server
+  augur api:stop       stop :8787
   augur api:logs       tail api log
   augur snapshot
   augur monthly YYYY-MM
@@ -34,7 +38,7 @@ Core
 Accounts
   augur accounts        active only
   augur accounts:all    all statuses
-  augur add CHAIN ADDRESS LABEL [NETWORK]
+  augur add CHAIN ADDRESS "LABEL" [NETWORK]
   augur pause ACCOUNT_ID
   augur resume ACCOUNT_ID
   augur delete ACCOUNT_ID
@@ -44,65 +48,85 @@ TXT
 
 cmd="${1:-}"
 case "$cmd" in
-  ""|"-h"|"--help"|"help")
-    usage
-    exit 0
-    ;;
+  ""|-h|--help|help) usage; exit 0 ;;
+esac
 
+case "$cmd" in
   status)
-    echo "{\"root\":\"$ROOT\",\"vault\":\"$VAULT_PATH\",\"api\":\"$API_BASE\",\"log\":\"$LOG_FILE\"}"
+    printf '{"root":"%s","vault":"%s","api":"%s","log":"%s"}\n' "$ROOT" "$VAULT_PATH" "$API_BASE" "$LOG_FILE"
     ;;
 
   api)
-    (cd "$ROOT/apps/api" && VAULT_PATH="$VAULT_PATH" pnpm start)
+    if port_listening; then
+      echo "[augur] already listening on :8787"
+      exit 0
+    fi
+    run_root dev:api
     ;;
 
   api:bg)
-    port=8787
-    if ss -ltnp 2>/dev/null | grep -q ":$port"; then
-      echo "[augur] already listening on :$port"
+    if port_listening; then
+      echo "[augur] already listening on :8787"
       exit 0
     fi
-    : >"$LOG_FILE" || true
-    nohup bash -lc "cd '$ROOT/apps/api' && VAULT_PATH='$VAULT_PATH' pnpm start" >>"$LOG_FILE" 2>&1 &
+    # Start dev server in background, log to file
+    (cd "$ROOT" && nohup pnpm dev:api >"$LOG_FILE" 2>&1 & disown) || true
     sleep 1
     if curl -fsS "$API_BASE/health" >/dev/null 2>&1; then
       echo "[augur] api up (bg) log=$LOG_FILE"
-    else
-      echo "[augur] api not healthy yet, see log=$LOG_FILE"
-      exit 1
+      exit 0
     fi
+    echo "[augur] api not healthy yet, see log=$LOG_FILE"
+    exit 1
     ;;
 
   api:stop)
-    port=8787
-    pid="$(ss -ltnp 2>/dev/null | awk -v p=":$port" '$0 ~ p {print $0}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | head -n 1 || true)"
+    port="8787"
+    pid="$(ss -ltnp 2>/dev/null | awk -v p=":$port" '$4 ~ p {print $0}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | head -n 1)"
     if [ -n "${pid:-}" ]; then
-      kill "$pid" || true
+      kill "$pid" 2>/dev/null || true
+      sleep 1
       echo "[augur] killed :$port"
-    else
-      echo "[augur] nothing on :$port"
+      exit 0
     fi
+    echo "[augur] nothing on :$port"
     ;;
 
   api:logs)
+    # Never start the server here. Just tail the log.
     if [ -f "$LOG_FILE" ]; then
       tail -n 200 -f "$LOG_FILE"
     else
       echo "[augur] no log yet at $LOG_FILE"
-      echo "[augur] run: augur api:bg"
       exit 1
     fi
     ;;
 
+  snapshot)
+    need_api
+    run_root snapshot
+    ;;
+
+  monthly)
+    need_api
+    month="${2:-}"
+    [ -n "$month" ] || { echo "[augur] usage: augur monthly YYYY-MM"; exit 1; }
+    run_root monthly "$month"
+    ;;
+
+  publish)
+    need_api
+    run_root publish
+    ;;
+
   accounts)
     need_api
-    curl -fsS "$API_BASE/api/accounts?active=1"
+    curl -fsS "$API_BASE/api/accounts" || true
     ;;
 
   accounts:all)
     need_api
-    curl -fsS "$API_BASE/api/accounts"
+    curl -fsS "$API_BASE/api/accounts/all" || true
     ;;
 
   add)
@@ -110,47 +134,32 @@ case "$cmd" in
     chain="${2:-}"
     addr="${3:-}"
     label="${4:-}"
-    network="${5:-}"
-    [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || { echo "[augur] usage: augur add CHAIN ADDRESS LABEL [NETWORK]"; exit 1; }
-    curl -fsS -X POST "$API_BASE/api/accounts" \
-      -H "content-type: application/json" \
-      -d "{\"chain\":\"$chain\",\"address_or_identifier\":\"$addr\",\"label\":\"$label\",\"network\":\"$network\"}"
+    net="${5:-}"
+    [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || {
+      echo "[augur] usage: augur add CHAIN ADDRESS \"LABEL\" [NETWORK]"
+      exit 1
+    }
+    # Build JSON safely
+    python3 - <<PY | curl -fsS -X POST "$API_BASE/api/accounts/add" -H "content-type: application/json" -d @-
+import json,sys
+chain=sys.argv[1]; addr=sys.argv[2]; label=sys.argv[3]; net=(sys.argv[4] if len(sys.argv)>4 else "")
+payload={"chain":chain,"address":addr,"label":label}
+if net: payload["network"]=net
+print(json.dumps(payload))
+PY
+"$chain" "$addr" "$label" "$net"
     ;;
 
-  pause)
+  pause|resume|delete)
     need_api
-    id="${2:-}"; [ -n "$id" ] || { echo "[augur] usage: augur pause ACCOUNT_ID"; exit 1; }
-    curl -fsS -X POST "$API_BASE/api/accounts/$id/pause"
-    ;;
-
-  resume)
-    need_api
-    id="${2:-}"; [ -n "$id" ] || { echo "[augur] usage: augur resume ACCOUNT_ID"; exit 1; }
-    curl -fsS -X POST "$API_BASE/api/accounts/$id/resume"
-    ;;
-
-  delete)
-    need_api
-    id="${2:-}"; [ -n "$id" ] || { echo "[augur] usage: augur delete ACCOUNT_ID"; exit 1; }
-    curl -fsS -X DELETE "$API_BASE/api/accounts/$id"
+    id="${2:-}"
+    [ -n "$id" ] || { echo "[augur] usage: augur $cmd ACCOUNT_ID"; exit 1; }
+    curl -fsS -X POST "$API_BASE/api/accounts/$cmd" -H "content-type: application/json" -d "{\"account_id\":\"$id\"}" || true
     ;;
 
   purge:deleted)
     need_api
-    curl -fsS -X POST "$API_BASE/api/accounts/purge-deleted"
-    ;;
-
-  snapshot)
-    run_root --silent snapshot
-    ;;
-
-  monthly)
-    month="${2:-}"; [ -n "$month" ] || { echo "[augur] usage: augur monthly YYYY-MM"; exit 1; }
-    run_root --silent monthly "$month"
-    ;;
-
-  publish)
-    run_root --silent publish
+    curl -fsS -X POST "$API_BASE/api/accounts/purge/deleted" -H "content-type: application/json" -d '{}' || true
     ;;
 
   *)

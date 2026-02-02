@@ -1,6 +1,6 @@
-import type { Express } from "express";
-import fs from "node:fs/promises";
-import path from "node:path";
+import type { Express, Request, Response } from "express";
+import path from "path";
+import fs from "fs/promises";
 
 type Account = {
   account_id: string;
@@ -13,93 +13,116 @@ type Account = {
   status: string;
 };
 
-const DATA_DIR = "/var/www/augur/apps/api/data";
+// systemd WorkingDirectory is /var/www/augur/apps/api
+// accounts store is /var/www/augur/apps/api/data/accounts.json
+const DATA_DIR = path.resolve(process.cwd(), "data");
 const ACCOUNTS_FILE = path.join(DATA_DIR, "accounts.json");
-const SNAPSHOT_FILE = path.join(DATA_DIR, "snapshot_latest.json");
-const MONTHLY_FILE = (month: string) => path.join(DATA_DIR, `monthly_${month}.json`);
-const PUBLIC_EXPORT_DIR_DEFAULT = "/var/www/augur/public_exports";
 
-async function ensureDir(dir: string) {
-  await fs.mkdir(dir, { recursive: true });
-}
-
-async function readJsonFile<T>(file: string, fallback: T): Promise<T> {
+async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
   try {
-    const raw = await fs.readFile(file, "utf-8");
-    return JSON.parse(raw) as T;
+    const raw = await fs.readFile(filePath, "utf8");
+    const parsed = JSON.parse(raw);
+    return parsed as T;
   } catch {
     return fallback;
   }
 }
 
-async function writeJsonFile(file: string, obj: unknown) {
-  const raw = JSON.stringify(obj, null, 2) + "\n";
-  await fs.writeFile(file, raw, "utf-8");
+async function writeJsonFile(filePath: string, data: unknown): Promise<void> {
+  const tmp = `${filePath}.tmp`;
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(tmp, JSON.stringify(data, null, 2) + "\n", "utf8");
+  await fs.rename(tmp, filePath);
 }
 
-async function loadAccounts(): Promise<Account[]> {
-  await ensureDir(DATA_DIR);
-  const data = await readJsonFile<{ accounts: Account[] }>(ACCOUNTS_FILE, { accounts: [] });
-  if (!data || !Array.isArray(data.accounts)) return [];
-  return data.accounts;
+function jsonBody(req: Request): any {
+  return (req as any).body ?? {};
 }
 
-async function saveAccounts(accounts: Account[]) {
-  await ensureDir(DATA_DIR);
-  await writeJsonFile(ACCOUNTS_FILE, { accounts });
+function requireMonth(body: any): { ok: true; month: string } | { ok: false; error: string; expected?: string } {
+  const month = String(body?.month ?? "").trim();
+  if (!month) return { ok: false, error: "missing_month" };
+  if (!/^\d{4}-\d{2}$/.test(month)) return { ok: false, error: "invalid_month", expected: "YYYY-MM" };
+  return { ok: true, month };
 }
 
-function isValidMonth(m: unknown): m is string {
-  if (typeof m !== "string") return false;
-  return /^\d{4}-\d{2}$/.test(m);
+function requireOutDir(body: any): { ok: true; outDir: string } | { ok: false; error: string } {
+  const outDir = String(body?.outDir ?? "").trim();
+  if (!outDir) return { ok: false, error: "missing_outDir" };
+  return { ok: true, outDir };
 }
 
 export function registerExtras(app: Express) {
-  app.get("/api/accounts", async (_req, res) => {
-    const accounts = await loadAccounts();
+  app.get("/api/accounts", async (_req: Request, res: Response) => {
+    const data = await readJsonFile<{ accounts: Account[] }>(ACCOUNTS_FILE, { accounts: [] });
+    const accounts = Array.isArray((data as any).accounts) ? (data as any).accounts : [];
     res.json({ ok: true, accounts });
   });
 
-  app.get("/api/accounts/all", async (_req, res) => {
-    const accounts = await loadAccounts();
+  app.get("/api/accounts/all", async (_req: Request, res: Response) => {
+    const data = await readJsonFile<{ accounts: Account[] }>(ACCOUNTS_FILE, { accounts: [] });
+    const accounts = Array.isArray((data as any).accounts) ? (data as any).accounts : [];
     res.json({ ok: true, accounts });
   });
 
-  app.post("/api/accounts", async (req, res) => {
-    const body = req.body || {};
-    const accounts = await loadAccounts();
+  app.delete("/api/accounts/:account_id", async (req: Request, res: Response) => {
+    const id = String(req.params.account_id || "").trim();
+    if (!id) return res.status(400).json({ ok: false, error: "missing_account_id" });
 
-    const now = new Date().toISOString();
-    const acct: Account = {
-      account_id: String(body.account_id || `acct_${Math.random().toString(16).slice(2, 10)}`),
-      type: String(body.type || "onchain_wallet"),
-      chain: String(body.chain || "xrpl"),
-      label: String(body.label || ""),
-      address_or_identifier: String(body.address_or_identifier || ""),
-      network: String(body.network || "mainnet"),
-      created_at: String(body.created_at || now),
-      status: String(body.status || "active"),
-    };
+    const data = await readJsonFile<{ accounts: Account[] }>(ACCOUNTS_FILE, { accounts: [] });
+    const accounts = Array.isArray((data as any).accounts) ? (data as any).accounts : [];
 
-    const exists = accounts.some(a => a.account_id === acct.account_id);
-    const next = exists ? accounts.map(a => (a.account_id === acct.account_id ? acct : a)) : [...accounts, acct];
-
-    await saveAccounts(next);
-    res.json({ ok: true, account: acct });
-  });
-
-  app.delete("/api/accounts/:id", async (req, res) => {
-    const id = String(req.params.id || "");
-    const accounts = await loadAccounts();
     const before = accounts.length;
-    const next = accounts.filter(a => a.account_id !== id);
-    await saveAccounts(next);
-    res.json({ ok: true, deleted: before - next.length, account_id: id });
+    const filtered = accounts.filter((a: any) => !(a && typeof a === "object" && a.account_id === id));
+    const deleted = before - filtered.length;
+
+    await writeJsonFile(ACCOUNTS_FILE, { ok: true, accounts: filtered });
+
+    res.json({ ok: true, deleted, account_id: id });
   });
 
-  app.post("/api/snapshot", async (_req, res) => {
-    const accounts = await loadAccounts();
-    const active = accounts.filter(a => a.status === "active").length;
+  app.post("/api/snapshot", async (_req: Request, res: Response) => {
+    const data = await readJsonFile<{ accounts: Account[] }>(ACCOUNTS_FILE, { accounts: [] });
+    const accounts = Array.isArray((data as any).accounts) ? (data as any).accounts : [];
+    const active = accounts.filter((a: any) => a?.status === "active").length;
+
+    res.json({
+      ok: true,
+      snapshot: {
+        ok: true,
+        type: "snapshot",
+        created_at: new Date().toISOString(),
+        counts: { active },
+        accounts,
+      },
+    });
+  });
+
+  app.post("/api/monthly", async (req: Request, res: Response) => {
+    const body = jsonBody(req);
+    const m = requireMonth(body);
+    if (!m.ok) return res.status(400).json(m);
+
+    res.json({
+      ok: true,
+      type: "monthly",
+      month: m.month,
+      created_at: new Date().toISOString(),
+    });
+  });
+
+  app.post("/api/export/public", async (req: Request, res: Response) => {
+    const body = jsonBody(req);
+
+    const out = requireOutDir(body);
+    if (!out.ok) return res.status(400).json(out);
+
+    const m = requireMonth(body);
+    if (!m.ok) return res.status(400).json(m);
+
+    const data = await readJsonFile<{ accounts: Account[] }>(ACCOUNTS_FILE, { accounts: [] });
+    const accounts = Array.isArray((data as any).accounts) ? (data as any).accounts : [];
+    const active = accounts.filter((a: any) => a?.status === "active").length;
 
     const snapshot = {
       ok: true,
@@ -109,56 +132,26 @@ export function registerExtras(app: Express) {
       accounts,
     };
 
-    await ensureDir(DATA_DIR);
-    await writeJsonFile(SNAPSHOT_FILE, snapshot);
-
-    res.json({ ok: true, snapshot });
-  });
-
-  app.post("/api/monthly", async (req, res) => {
-    const month = req.body?.month;
-
-    if (!isValidMonth(month)) {
-      res.status(400).json({ ok: false, error: "invalid_month", expected: "YYYY-MM" });
-      return;
-    }
-
     const monthly = {
       ok: true,
       type: "monthly",
-      month,
+      month: m.month,
       created_at: new Date().toISOString(),
     };
-
-    await ensureDir(DATA_DIR);
-    await writeJsonFile(MONTHLY_FILE(month), monthly);
-
-    res.json(monthly);
-  });
-
-  app.post("/api/export/public", async (req, res) => {
-    const outDir = String(req.body?.outDir || PUBLIC_EXPORT_DIR_DEFAULT);
-    const month = String(req.body?.month || "");
-
-    await ensureDir(outDir);
-
-    const snapshot = await readJsonFile<any>(SNAPSHOT_FILE, { ok: false, error: "missing_snapshot" });
-    const monthly = month && isValidMonth(month)
-      ? await readJsonFile<any>(MONTHLY_FILE(month), { ok: false, error: "missing_month" })
-      : { ok: false, error: "missing_month" };
 
     const latest = {
       ok: true,
       created_at: new Date().toISOString(),
-      month,
+      month: m.month,
       snapshot,
       monthly,
     };
 
-    await writeJsonFile(path.join(outDir, "snapshot.json"), snapshot);
-    if (month && isValidMonth(month)) await writeJsonFile(path.join(outDir, `monthly_${month}.json`), monthly);
-    await writeJsonFile(path.join(outDir, "latest.json"), latest);
+    await fs.mkdir(out.outDir, { recursive: true });
+    await fs.writeFile(path.join(out.outDir, "snapshot.json"), JSON.stringify({ ok: true, snapshot }, null, 2) + "\n", "utf8");
+    await fs.writeFile(path.join(out.outDir, `monthly_${m.month}.json`), JSON.stringify(monthly, null, 2) + "\n", "utf8");
+    await fs.writeFile(path.join(out.outDir, "latest.json"), JSON.stringify(latest, null, 2) + "\n", "utf8");
 
-    res.json({ ok: true, outDir, latest: "latest.json", month });
+    res.json({ ok: true, outDir: out.outDir, latest: "latest.json", month: m.month });
   });
 }

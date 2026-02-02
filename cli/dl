@@ -3,9 +3,9 @@ set -euo pipefail
 
 ROOT="/var/www/augur"
 VAULT_DEFAULT="$ROOT/vault/sample_vault"
-VAULT_PATH="${DL_VAULT_PATH:-$VAULT_DEFAULT}"
+VAULT_PATH="${AUGUR_VAULT_PATH:-${DL_VAULT_PATH:-$VAULT_DEFAULT}}"
 API_BASE="http://127.0.0.1:8787"
-LOG_FILE="/tmp/dl_api.log"
+LOG_FILE="/tmp/augur_api.log"
 
 run_root() { (cd "$ROOT" && pnpm "$@"); }
 

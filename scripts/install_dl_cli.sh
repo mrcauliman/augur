@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="/var/www/augur"
 SRC="$ROOT/cli/dl"
+
 DST="/usr/local/bin/dl"
 
 [ -f "$SRC" ] || { echo "[augur] missing $SRC"; exit 1; }

@@ -42,3 +42,27 @@ _backups/
 
 # local backups
 _backups/
+
+# offline only
+augur_runbook.html
+
+# local/operator artifacts
+public_exports/
+apps/api/data/
+PATH_FROM_GREP
+
+# editor/temp backups
+*.bak.*
+*.swp
+*~
+
+# local scratch scripts
+scripts/augur_fix_all_now.sh
+scripts/demo_artifact_flow.sh
+scripts/diag_augur_cli.sh
+scripts/fix_augur_all.sh
+scripts/purge_junk_accounts.sh
+scripts/recover_api.sh
+scripts/recover_api_and_seed_accounts.sh
+scripts/recover_api_wait_verify.sh
+scripts/test_json_outputs.sh

@@ -2,32 +2,44 @@
 set -euo pipefail
 
 ROOT="/var/www/augur"
-
 VAULT_DEFAULT="$ROOT/vault/sample_vault"
-VAULT_PATH="${AUGUR_VAULT_PATH:-${DL_VAULT_PATH:-$VAULT_DEFAULT}}"
+VAULT_PATH="${AUGUR_VAULT_PATH:-$VAULT_DEFAULT}"
+API_BASE="http://127.0.0.1:8787"
+LOG_FILE="/tmp/augur_api.log"
 
-API_BASE="${AUGUR_API_BASE:-http://127.0.0.1:8787}"
-LOG_FILE="${AUGUR_LOG_FILE:-/tmp/augur_api.log}"
-PID_FILE="/tmp/augur_api.pid"
-PORT="8787"
+ACCOUNTS_URL_1="$API_BASE/accounts"
+ACCOUNTS_URL_2="$API_BASE/api/accounts"
+ADD_URL_1="$API_BASE/accounts/add"
+ADD_URL_2="$API_BASE/api/accounts/add"
+PAUSE_URL_1="$API_BASE/accounts/pause"
+PAUSE_URL_2="$API_BASE/api/accounts/pause"
+RESUME_URL_1="$API_BASE/accounts/resume"
+RESUME_URL_2="$API_BASE/api/accounts/resume"
+DELETE_URL_1="$API_BASE/accounts/delete"
+DELETE_URL_2="$API_BASE/api/accounts/delete"
 
 run_root() { (cd "$ROOT" && pnpm "$@"); }
 
-is_listening() {
-  ss -ltnp 2>/dev/null | grep -qE "[:.]${PORT}\s"
-}
-
-listener_pid() {
-  ss -ltnp 2>/dev/null | awk -v p=":${PORT}" '$0 ~ p && $0 ~ /LISTEN/ {print $0}' \
-    | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | head -n 1
-}
-
 need_api() {
   curl -fsS "$API_BASE/health" >/dev/null 2>&1 || {
-    echo "[augur] api not reachable on :$PORT"
-    echo "[augur] run: augur api or augur api:bg"
+    echo "[augur] api not reachable on :8787" >&2
+    echo "[augur] run: augur api or augur api:bg" >&2
     exit 1
   }
+}
+
+try_get() {
+  local u1="${1:-}" u2="${2:-}"
+  if [ -n "$u1" ] && curl -fsS "$u1" 2>/dev/null; then return 0; fi
+  if [ -n "$u2" ] && curl -fsS "$u2" 2>/dev/null; then return 0; fi
+  return 1
+}
+
+try_post() {
+  local u1="${1:-}" u2="${2:-}" body="${3:-}"
+  if [ -n "$u1" ] && curl -fsS -H "Content-Type: application/json" -d "$body" "$u1" 2>/dev/null; then return 0; fi
+  if [ -n "$u2" ] && curl -fsS -H "Content-Type: application/json" -d "$body" "$u2" 2>/dev/null; then return 0; fi
+  return 1
 }
 
 usage() {
@@ -42,7 +54,6 @@ Core
   augur api:logs       tail api log
   augur snapshot
   augur monthly YYYY-MM
-  augur publish
 
 Accounts
   augur accounts        active only
@@ -51,146 +62,130 @@ Accounts
   augur pause ACCOUNT_ID
   augur resume ACCOUNT_ID
   augur delete ACCOUNT_ID
-  augur purge:deleted
-
-Environment
-  AUGUR_VAULT_PATH   override vault path
-  AUGUR_API_BASE     override api base (default http://127.0.0.1:8787)
-  AUGUR_LOG_FILE     override log file (default /tmp/augur_api.log)
 TXT
 }
 
 cmd="${1:-}"
 case "$cmd" in
-  ""|-h|--help|help)
+  ""|"-h"|"--help"|"help")
     usage
     exit 0
     ;;
 
   status)
-    printf '{"root":"%s","vault":"%s","api":"%s","log":"%s"}\n' "$ROOT" "$VAULT_PATH" "$API_BASE" "$LOG_FILE"
+    echo "{\"root\":\"$ROOT\",\"vault\":\"$VAULT_PATH\",\"api\":\"$API_BASE\",\"log\":\"$LOG_FILE\"}"
     ;;
 
   api)
-    if is_listening; then
-      echo "[augur] already listening on :$PORT"
-      exit 0
-    fi
-    run_root dev:api
+    exec bash -lc "cd \"$ROOT\" && pnpm -C apps/api dev"
     ;;
 
   api:bg)
-    if is_listening; then
-      echo "[augur] already listening on :$PORT"
+    if ss -ltnp 2>/dev/null | grep -q ":8787"; then
+      echo "[augur] already listening on :8787"
       exit 0
     fi
-
-    : > "$LOG_FILE" || true
-
-    # start detached so your shell stays clean
-    nohup bash -lc "cd '$ROOT' && pnpm dev:api" >>"$LOG_FILE" 2>&1 &
-    echo $! > "$PID_FILE" || true
-
-    # wait for health
-    for _ in $(seq 1 30); do
-      if curl -fsS "$API_BASE/health" >/dev/null 2>&1; then
-        echo "[augur] api up (bg) log=$LOG_FILE"
-        exit 0
-      fi
-      sleep 0.25
-    done
-
-    echo "[augur] api not healthy yet, see log=$LOG_FILE"
+    nohup bash -lc "cd \"$ROOT\" && pnpm -C apps/api dev" >"$LOG_FILE" 2>&1 &
+    sleep 0.4
+    if curl -fsS "$API_BASE/health" >/dev/null 2>&1; then
+      echo "[augur] api up (bg) log=$LOG_FILE"
+      exit 0
+    fi
+    echo "[augur] api not healthy yet, see log=$LOG_FILE" >&2
     exit 1
     ;;
 
   api:stop)
-    pid="$(listener_pid || true)"
-    if [ -n "${pid:-}" ]; then
-      kill "$pid" 2>/dev/null || true
-      sleep 0.25
-      echo "[augur] killed :$PORT"
-      exit 0
+    if ss -ltnp 2>/dev/null | grep -q ":8787"; then
+      pid="$(ss -ltnp 2>/dev/null | awk '/:8787/ {print $NF}' | head -n1 | sed -n 's/.*pid=\([0-9]\+\).*/\1/p')"
+      if [ -n "${pid:-}" ]; then
+        kill "$pid" 2>/dev/null || true
+        echo "[augur] killed :8787"
+        exit 0
+      fi
     fi
-    echo "[augur] nothing on :$PORT"
+    echo "[augur] nothing on :8787"
     ;;
 
   api:logs)
-    if [ -f "$LOG_FILE" ]; then
-      tail -n 200 "$LOG_FILE"
-    else
-      echo "[augur] no log at $LOG_FILE"
-    fi
+    [ -f "$LOG_FILE" ] || { echo "[augur] no log at $LOG_FILE" >&2; exit 1; }
+    tail -n 200 -f "$LOG_FILE"
     ;;
 
   snapshot)
-    need_api
-    run_root snapshot
+    exec bash -lc "cd \"$ROOT\" && pnpm -C apps/api snapshot"
     ;;
 
   monthly)
     month="${2:-}"
-    [ -n "${month:-}" ] || { echo "[augur] usage: augur monthly YYYY-MM"; exit 1; }
-    need_api
-    run_root monthly "$month"
-    ;;
-
-  publish)
-    need_api
-    run_root publish
-    ;;
-
-  accounts)
-    need_api
-    curl -fsS "$API_BASE/api/accounts"
+    [ -n "$month" ] || { echo "[augur] usage: augur monthly YYYY-MM" >&2; exit 1; }
+    exec bash -lc "cd \"$ROOT\" && pnpm -C apps/api monthly \"$month\""
     ;;
 
   accounts:all)
     need_api
-    curl -fsS "$API_BASE/api/accounts/all"
+    try_get "$ACCOUNTS_URL_1" "$ACCOUNTS_URL_2" || {
+      echo "[augur] failed to fetch accounts" >&2
+      exit 1
+    }
+    ;;
+
+  accounts)
+    need_api
+    try_get "$ACCOUNTS_URL_1" "$ACCOUNTS_URL_2" | python3 -c 'import json,sys; d=json.load(sys.stdin); accts=d.get("accounts",[]); active=[a for a in accts if a.get("status")=="active"]; print(json.dumps({"ok": True, "accounts": active}))' || {
+      echo "[augur] failed to fetch accounts" >&2
+      exit 1
+    }
     ;;
 
   add)
+    need_api
     chain="${2:-}"
     addr="${3:-}"
     label="${4:-}"
     network="${5:-}"
-    [ -n "${chain:-}" ] && [ -n "${addr:-}" ] && [ -n "${label:-}" ] || {
-      echo '[augur] usage: augur add CHAIN ADDRESS "LABEL" [NETWORK]'
+
+    [ -n "$chain" ] && [ -n "$addr" ] && [ -n "$label" ] || {
+      echo "[augur] usage: augur add CHAIN ADDRESS \"LABEL\" [NETWORK]" >&2
       exit 1
     }
-    need_api
-    curl -fsS -X POST "$API_BASE/api/accounts" \
-      -H "content-type: application/json" \
-      -d "$(printf '{"chain":"%s","address_or_identifier":"%s","label":"%s","network":"%s"}' \
-        "$chain" "$addr" "$label" "${network:-}")"
+
+    body="$(python3 -c "import json; chain='$chain'; addr='$addr'; label='$label'; network='$network'; body={'type':'onchain_wallet','chain':chain,'label':label,'address_or_identifier':addr}; 
+if network and network != '[NETWORK]': body['network']=network
+print(json.dumps(body))")"
+
+    try_post "$ADD_URL_1" "$ADD_URL_2" "$body" || {
+      echo "[augur] add failed" >&2
+      exit 1
+    }
     ;;
 
   pause)
-    id="${2:-}"; [ -n "${id:-}" ] || { echo "[augur] usage: augur pause ACCOUNT_ID"; exit 1; }
     need_api
-    curl -fsS -X POST "$API_BASE/api/accounts/$id/pause"
+    id="${2:-}"
+    [ -n "$id" ] || { echo "[augur] usage: augur pause ACCOUNT_ID" >&2; exit 1; }
+    body="{\"account_id\":\"$id\"}"
+    try_post "$PAUSE_URL_1" "$PAUSE_URL_2" "$body" || { echo "[augur] pause failed" >&2; exit 1; }
     ;;
 
   resume)
-    id="${2:-}"; [ -n "${id:-}" ] || { echo "[augur] usage: augur resume ACCOUNT_ID"; exit 1; }
     need_api
-    curl -fsS -X POST "$API_BASE/api/accounts/$id/resume"
+    id="${2:-}"
+    [ -n "$id" ] || { echo "[augur] usage: augur resume ACCOUNT_ID" >&2; exit 1; }
+    body="{\"account_id\":\"$id\"}"
+    try_post "$RESUME_URL_1" "$RESUME_URL_2" "$body" || { echo "[augur] resume failed" >&2; exit 1; }
     ;;
 
   delete)
-    id="${2:-}"; [ -n "${id:-}" ] || { echo "[augur] usage: augur delete ACCOUNT_ID"; exit 1; }
     need_api
-    curl -fsS -X DELETE "$API_BASE/api/accounts/$id"
-    ;;
-
-  purge:deleted)
-    need_api
-    curl -fsS -X POST "$API_BASE/api/accounts/purge_deleted"
+    id="${2:-}"
+    [ -n "$id" ] || { echo "[augur] usage: augur delete ACCOUNT_ID" >&2; exit 1; }
+    body="{\"account_id\":\"$id\"}"
+    try_post "$DELETE_URL_1" "$DELETE_URL_2" "$body" || { echo "[augur] delete failed" >&2; exit 1; }
     ;;
 
   *)
-    echo "[augur] unknown command: $cmd"
+    echo "[augur] unknown command: $cmd" >&2
     usage
     exit 1
     ;;
